@@ -1,0 +1,7 @@
+# Versionar somente os arquivos do editor.
+/*
+!/.gitignore
+!/README.md
+!/requirements.txt
+!/editor_opencv_otimizado.py
+!/editor_recursos.py
