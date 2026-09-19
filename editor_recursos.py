@@ -269,12 +269,43 @@ class RecursosEditor:
             return
         win = self.janela_kernel = tk.Toplevel(self.root)
         win.title("Laboratório de morfologia • elemento estruturante")
-        win.geometry("820x680")
-        win.minsize(780, 650)
-        win.transient(self.root)
+        # No Windows, transient remove os botões de maximizar/minimizar.
+        # Use uma janela normal, mantendo apenas a modalidade do laboratório.
+        win.resizable(True, True)
+        screen_w, screen_h = win.winfo_screenwidth(), win.winfo_screenheight()
+        width, height = min(900, int(screen_w * 0.85)), min(720, int(screen_h * 0.80))
+        win.geometry(f"{width}x{height}+{max(0, (screen_w - width) // 2)}+{max(0, (screen_h - height) // 2)}")
+        win.minsize(480, 360)
         win.grab_set()
-        box = ttk.Frame(win, padding=16)
-        box.pack(fill="both", expand=True)
+        win.columnconfigure(0, weight=1)
+        win.rowconfigure(0, weight=1)
+        viewport = tk.Canvas(win, highlightthickness=0, bg="#eef2f7")
+        viewport.grid(row=0, column=0, sticky="nsew")
+        scroll_y = ttk.Scrollbar(win, orient="vertical", command=viewport.yview)
+        scroll_y.grid(row=0, column=1, sticky="ns")
+        scroll_x = ttk.Scrollbar(win, orient="horizontal", command=viewport.xview)
+        scroll_x.grid(row=1, column=0, sticky="ew")
+        viewport.configure(yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
+        box = ttk.Frame(viewport, padding=16)
+        box_id = viewport.create_window((0, 0), window=box, anchor="nw")
+        def layout(_event=None):
+            viewport.itemconfigure(box_id, width=max(viewport.winfo_width(), box.winfo_reqwidth()),
+                                   height=max(viewport.winfo_height(), box.winfo_reqheight()))
+            viewport.configure(scrollregion=viewport.bbox("all"))
+        viewport.bind("<Configure>", layout)
+        box.bind("<Configure>", layout)
+        def scroll(event):
+            if isinstance(event.widget, (ttk.Combobox, ttk.Spinbox)):
+                return
+            if viewport.yview() != (0.0, 1.0):
+                direction = -1 if getattr(event, "num", None) == 4 else 1
+                if getattr(event, "delta", 0):
+                    direction = -1 if event.delta > 0 else 1
+                viewport.yview_scroll(direction * 3, "units")
+                return "break"
+        win.bind("<MouseWheel>", scroll)
+        win.bind("<Button-4>", scroll)
+        win.bind("<Button-5>", scroll)
         draft = self.snapshot_morfologia()
         matrix = draft["kernel"]
         h, w = matrix.shape
@@ -282,9 +313,11 @@ class RecursosEditor:
                      "forma": tk.StringVar(value="Personalizado"),
                      **{key: tk.StringVar(value=draft[key]) for key in ("iterations", "threshold", "border", "mode")},
                      "x": tk.StringVar(value=draft["anchor"][0]), "y": tk.StringVar(value=draft["anchor"][1])}
-        ttk.Label(box, text="Desenhe seu elemento estruturante", font=("Segoe UI", 17, "bold")).pack(anchor="w")
+        ttk.Label(box, text="Desenhe seu elemento estruturante", wraplength=540,
+                  font=("Segoe UI", 17, "bold")).pack(anchor="w")
         ttk.Label(box, text="Clique: 0 → 1 → -1. Arraste para pintar. Clique direito define a âncora.\n"
-                  "1 = objeto; 0 = ignorar; -1 = fundo (somente Hit-or-miss). Nas outras operações, -1 é ignorado.").pack(anchor="w", pady=8)
+                  "1 = objeto; 0 = ignorar; -1 = fundo (somente Hit-or-miss). Nas outras operações, -1 é ignorado.",
+                  wraplength=540).pack(anchor="w", pady=8)
         top = ttk.Frame(box)
         top.pack(fill="x")
         forma_combo = ttk.Combobox(top, textvariable=variables["forma"], values=FORMAS, state="readonly", width=20)
@@ -292,12 +325,12 @@ class RecursosEditor:
         for key, label in (("largura", "Largura"), ("altura", "Altura")):
             ttk.Label(top, text=label).pack(side="left", padx=(8, 3))
             ttk.Spinbox(top, from_=1, to=31, width=4, textvariable=variables[key]).pack(side="left")
-        canvas = tk.Canvas(box, width=720, height=240, bg="#172235", highlightthickness=0)
+        canvas = tk.Canvas(box, width=480, height=240, bg="#172235", highlightthickness=0)
         canvas.pack(fill="both", expand=True, pady=10)
         paint = {"value": 1}
         def geometry():
             rows, cols = matrix.shape
-            size = min((canvas.winfo_width() - 8) / cols, (canvas.winfo_height() - 8) / rows, 42)
+            size = max(1, min((canvas.winfo_width() - 8) / cols, (canvas.winfo_height() - 8) / rows, 80))
             return size, (canvas.winfo_width() - cols * size) / 2, (canvas.winfo_height() - rows * size) / 2
         def draw(_event=None):
             canvas.delete("all")
@@ -355,14 +388,16 @@ class RecursosEditor:
                  ("threshold", "Limiar binário", 0, 255), ("x", "Âncora X", -1, 30), ("y", "Âncora Y", -1, 30))):
             ttk.Label(opts, text=label).grid(row=0, column=i, sticky="w", padx=4)
             ttk.Spinbox(opts, from_=low, to=high, width=10, textvariable=variables[key], command=draw).grid(row=1, column=i, padx=4)
-        ttk.Label(box, text="Âncora (-1, -1) = centro automático. Coordenadas começam em zero.").pack(anchor="w", pady=6)
+        ttk.Label(box, text="Âncora (-1, -1) = centro automático. Coordenadas começam em zero.",
+                  wraplength=540).pack(anchor="w", pady=6)
         bottom = ttk.Frame(box)
         bottom.pack(fill="x", pady=4)
         for key, label, values in (("mode", "Imagem", ("Colorida", "Cinza", "Binária")), ("border", "Borda", tuple(BORDAS))):
             ttk.Label(bottom, text=label).pack(side="left", padx=4)
             ttk.Combobox(bottom, textvariable=variables[key], values=values, state="readonly", width=23).pack(side="left")
         ttk.Label(box, text="Hit-or-miss sempre usa imagem binária. O limiar define os pixels brancos.\n"
-                  "As configurações são usadas em todas as operações da categoria Morfologia.").pack(anchor="w", pady=8)
+                  "As configurações são usadas em todas as operações da categoria Morfologia.",
+                  wraplength=540).pack(anchor="w", pady=8)
         def config():
             w, h = int(variables["largura"].get()), int(variables["altura"].get())
             if not (1 <= w <= 31 and 1 <= h <= 31):
@@ -413,11 +448,14 @@ class RecursosEditor:
             if self.filtro_var.get() in MORFOLOGIA and self.live_preview.get():
                 self.agendar_preview()
             win.destroy()
-        buttons = ttk.Frame(box)
-        buttons.pack(fill="x", pady=4)
-        ttk.Button(buttons, text="Importar JSON", command=load).pack(side="left", padx=3)
-        ttk.Button(buttons, text="Exportar JSON", command=save).pack(side="left", padx=3)
-        ttk.Button(buttons, text="Cancelar", command=win.destroy).pack(side="right", padx=3)
-        ttk.Button(buttons, text="Usar elemento", style="Accent.TButton", command=confirm).pack(side="right", padx=3)
+        # Rodapé fora da região rolável: ações sempre acessíveis, inclusive com DPI alto.
+        buttons = ttk.Frame(win, padding=(12, 6))
+        buttons.grid(row=2, column=0, columnspan=2, sticky="ew")
+        buttons.columnconfigure((0, 1), weight=1)
+        ttk.Button(buttons, text="Importar JSON", command=load).grid(row=0, column=0, sticky="ew", padx=3, pady=3)
+        ttk.Button(buttons, text="Exportar JSON", command=save).grid(row=0, column=1, sticky="ew", padx=3, pady=3)
+        ttk.Button(buttons, text="Cancelar", command=win.destroy).grid(row=1, column=0, sticky="ew", padx=3, pady=3)
+        ttk.Button(buttons, text="Usar elemento", style="Accent.TButton", command=confirm).grid(row=1, column=1, sticky="ew", padx=3, pady=3)
+        ttk.Sizegrip(win).grid(row=3, column=1, sticky="se")
         win.bind("<Return>", lambda e: (confirm(), "break")[-1])
         win.bind("<Escape>", lambda e: (win.destroy(), "break")[-1])

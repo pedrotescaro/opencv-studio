@@ -15,6 +15,10 @@ também podem ser instaladas automaticamente, como na versão anterior.
 
 ## Morfologia e elementos personalizados
 
+O laboratório pode ser redimensionado e maximizado. Em janelas pequenas, use
+as barras de rolagem ou a roda do mouse para acessar o conteúdo. Os botões de
+importar, exportar, cancelar e usar o elemento permanecem no rodapé fixo.
+
 - Desmarque **Usar matriz personalizada** para usar o elemento padrão 3 × 3,
   com âncora central, sem perder a matriz desenhada. Reative para recuperá-la.
 - Desmarque **Ativar filtro morfológico** para desligar completamente o efeito.
