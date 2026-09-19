@@ -76,11 +76,16 @@ def criar_kernel(forma, largura, altura):
 
 
 def validar_morfologia(config):
+    required = {"kernel", "anchor", "iterations", "border", "mode", "threshold"}
+    if not isinstance(config, dict) or not required.issubset(config):
+        raise ValueError("Configuração incompleta: matriz, âncora, iterações, borda, modo e limiar são obrigatórios.")
     k = np.asarray(config["kernel"])
     if k.ndim != 2 or not all(1 <= n <= 31 for n in k.shape):
         raise ValueError("A matriz precisa ter entre 1 e 31 linhas e colunas.")
     if not np.isin(k, [-1, 0, 1]).all() or not np.any(k == 1):
         raise ValueError("Use apenas -1, 0 e 1, com pelo menos uma célula 1.")
+    if not isinstance(config["anchor"], (tuple, list)):
+        raise ValueError("A âncora deve conter dois inteiros.")
     anchor = tuple(config["anchor"])
     if len(anchor) != 2 or any(type(v) is not int for v in anchor):
         raise ValueError("A âncora deve conter dois inteiros.")
@@ -88,7 +93,7 @@ def validar_morfologia(config):
         raise ValueError("A âncora deve estar dentro da matriz.")
     if type(config["iterations"]) is not int or not 1 <= config["iterations"] <= 30:
         raise ValueError("Use entre 1 e 30 iterações.")
-    if config["border"] not in BORDAS or config["mode"] not in ("Colorida", "Cinza", "Binária"):
+    if not isinstance(config["border"], str) or config["border"] not in BORDAS or config["mode"] not in ("Colorida", "Cinza", "Binária"):
         raise ValueError("Modo de imagem ou borda inválidos.")
     if type(config["threshold"]) is not int or not 0 <= config["threshold"] <= 255:
         raise ValueError("O limiar deve estar entre 0 e 255.")
@@ -106,6 +111,18 @@ def aplicar_morfologia(img, filtro, config):
     if c["border"].startswith("Constante"):
         value = 255 if c["border"] == "Constante branca" else 0
         kwargs["borderValue"] = (value,) * 4
+    if filtro == "Hit-or-miss":
+        # A erosão do complemento precisa também complementar a borda constante.
+        # morphologyEx reutiliza o mesmo valor nas duas erosões e perde padrões
+        # que atravessam a borda. Calcular a interseção explicita essa semântica.
+        objeto = cv2.erode(source, (kernel == 1).astype(np.uint8), **kwargs)
+        if not np.any(kernel == -1):
+            return objeto
+        fundo_kwargs = dict(kwargs)
+        if "borderValue" in fundo_kwargs:
+            fundo_kwargs["borderValue"] = (255 - value,) * 4
+        fundo = cv2.erode(cv2.bitwise_not(source), (kernel == -1).astype(np.uint8), **fundo_kwargs)
+        return cv2.bitwise_and(objeto, fundo)
     return cv2.morphologyEx(source, MORFOLOGIA[filtro], kernel, **kwargs)
 
 
@@ -163,6 +180,8 @@ def processar_extra(img, filtro, p1, p2):
 
 class RecursosEditor:
     def inicializar_recursos(self):
+        self.morfologia_ativa = tk.BooleanVar(value=True)
+        self.usar_elemento_configurado = tk.BooleanVar(value=True)
         self.morfologia = dict(kernel=np.ones((3, 3), np.int8), anchor=(-1, -1),
                                iterations=1, border="Padrão morfológico", mode="Colorida", threshold=127)
         style = ttk.Style(self.root)
@@ -182,6 +201,10 @@ class RecursosEditor:
         self.resultados = tk.Listbox(painel, height=4, exportselection=False, font=("Segoe UI", 10))
         self.resultados.bind("<<ListboxSelect>>", self.escolher_busca)
         self.btn_kernel = ttk.Button(painel, text="Elemento estruturante e morfologia…", command=self.editar_kernel)
+        ttk.Checkbutton(painel, text="Ativar filtro morfológico", variable=self.morfologia_ativa,
+                        command=self.alternar_morfologia).pack(anchor="w", pady=(6, 0))
+        ttk.Checkbutton(painel, text="Usar matriz personalizada", variable=self.usar_elemento_configurado,
+                        command=self.alternar_morfologia).pack(anchor="w")
         self.btn_kernel.pack(fill="x", pady=4)
         self.resumo_kernel = ttk.Label(painel, wraplength=280)
         self.resumo_kernel.pack(fill="x", pady=(0, 5))
@@ -214,11 +237,31 @@ class RecursosEditor:
 
     def atualizar_resumo_kernel(self):
         c = self.morfologia
-        h, w = c["kernel"].shape
-        self.resumo_kernel.config(text=f"Morfologia: {w} × {h} • {c['iterations']} iteração(ões) • {c['mode']}")
+        if not self.morfologia_ativa.get():
+            self.resumo_kernel.config(text="Morfologia desligada: imagem sem alterações.")
+            return
+        h, w = c["kernel"].shape if self.usar_elemento_configurado.get() else (3, 3)
+        origem = "configurada" if self.usar_elemento_configurado.get() else "padrão OpenCV"
+        self.resumo_kernel.config(text=f"Matriz {origem}: {w} × {h} • {c['iterations']} iteração(ões) • {c['mode']}")
+
+    def alternar_morfologia(self):
+        self.atualizar_resumo_kernel()
+        if self.filtro_var.get() in MORFOLOGIA:
+            self.configurar_parametros()
+            self.descartar_preview()
+            if self.live_preview.get():
+                self.agendar_preview()
 
     def snapshot_morfologia(self):
+        # O snapshot também serve ao laboratório: preserve a matriz desenhada.
         return dict(self.morfologia, kernel=self.morfologia["kernel"].copy())
+
+    def opcoes_morfologia_processamento(self):
+        config = self.snapshot_morfologia()
+        config["enabled"] = self.morfologia_ativa.get()
+        if not self.usar_elemento_configurado.get():
+            config.update(kernel=np.ones((3, 3), np.int8), anchor=(-1, -1))
+        return config
 
     def editar_kernel(self):
         if getattr(self, "janela_kernel", None) is not None and self.janela_kernel.winfo_exists():
@@ -244,7 +287,8 @@ class RecursosEditor:
                   "1 = objeto; 0 = ignorar; -1 = fundo (somente Hit-or-miss). Nas outras operações, -1 é ignorado.").pack(anchor="w", pady=8)
         top = ttk.Frame(box)
         top.pack(fill="x")
-        ttk.Combobox(top, textvariable=variables["forma"], values=FORMAS, state="readonly", width=20).pack(side="left")
+        forma_combo = ttk.Combobox(top, textvariable=variables["forma"], values=FORMAS, state="readonly", width=20)
+        forma_combo.pack(side="left")
         for key, label in (("largura", "Largura"), ("altura", "Altura")):
             ttk.Label(top, text=label).pack(side="left", padx=(8, 3))
             ttk.Spinbox(top, from_=1, to=31, width=4, textvariable=variables[key]).pack(side="left")
@@ -290,7 +334,7 @@ class RecursosEditor:
         canvas.bind("<Button-1>", cell)
         canvas.bind("<B1-Motion>", lambda e: cell(e, drag=True))
         canvas.bind("<Button-3>", lambda e: cell(e, anchor=True))
-        def generate():
+        def generate(_event=None):
             nonlocal matrix
             try:
                 w, h = int(variables["largura"].get()), int(variables["altura"].get())
@@ -304,6 +348,7 @@ class RecursosEditor:
             except ValueError as exc:
                 messagebox.showerror("Dimensões inválidas", str(exc), parent=win)
         ttk.Button(top, text="Gerar matriz", command=generate).pack(side="left", padx=8)
+        forma_combo.bind("<<ComboboxSelected>>", generate)
         opts = ttk.Frame(box)
         opts.pack(fill="x")
         for i, (key, label, low, high) in enumerate((("iterations", "Iterações", 1, 30),
@@ -319,6 +364,13 @@ class RecursosEditor:
         ttk.Label(box, text="Hit-or-miss sempre usa imagem binária. O limiar define os pixels brancos.\n"
                   "As configurações são usadas em todas as operações da categoria Morfologia.").pack(anchor="w", pady=8)
         def config():
+            w, h = int(variables["largura"].get()), int(variables["altura"].get())
+            if not (1 <= w <= 31 and 1 <= h <= 31):
+                raise ValueError("Dimensões: 1 a 31.")
+            if matrix.shape != (h, w):
+                if variables["forma"].get() == "Personalizado":
+                    raise ValueError("As dimensões foram alteradas. Clique em Gerar matriz e desenhe o novo elemento antes de usá-lo.")
+                generate()
             return validar_morfologia(dict(kernel=matrix.copy(), anchor=(int(variables["x"].get()), int(variables["y"].get())),
                 iterations=int(variables["iterations"].get()), threshold=int(variables["threshold"].get()),
                 mode=variables["mode"].get(), border=variables["border"].get()))
@@ -356,6 +408,8 @@ class RecursosEditor:
                 messagebox.showerror("Configuração inválida", str(exc), parent=win)
                 return
             self.atualizar_resumo_kernel()
+            if self.filtro_var.get() in MORFOLOGIA:
+                self.configurar_parametros()
             if self.filtro_var.get() in MORFOLOGIA and self.live_preview.get():
                 self.agendar_preview()
             win.destroy()

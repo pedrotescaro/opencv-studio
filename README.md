@@ -15,6 +15,12 @@ também podem ser instaladas automaticamente, como na versão anterior.
 
 ## Morfologia e elementos personalizados
 
+- Desmarque **Usar matriz personalizada** para usar o elemento padrão 3 × 3,
+  com âncora central, sem perder a matriz desenhada. Reative para recuperá-la.
+- Desmarque **Ativar filtro morfológico** para desligar completamente o efeito.
+  A prévia mantém a imagem e Aplicar não cria alterações nem histórico.
+  Os filtros de outras categorias continuam funcionando normalmente.
+
 1. Abra uma imagem e escolha a categoria **Morfologia**.
 2. Clique em **Elemento estruturante e morfologia…**.
 3. Escolha retângulo, elipse, cruz, losango, linhas ou diagonais. Defina largura e
@@ -24,6 +30,11 @@ também podem ser instaladas automaticamente, como na versão anterior.
 5. Escolha iterações, bordas e modo de imagem. Clique em **Usar elemento**.
 6. Escolha a operação, confira a prévia e clique em **Aplicar filtro**.
 
+A seleção de uma forma pronta atualiza a matriz imediatamente. Se alterar as
+dimensões de uma matriz personalizada, gere e desenhe a nova matriz antes de
+confirmar. Iterações e limiar também podem ser ajustados no painel principal;
+o limiar fica habilitado para o modo binário e para Hit-or-miss.
+
 As oito operações nativas estão disponíveis: erosão, dilatação, abertura,
 fechamento, gradiente, top-hat, black-hat e hit-or-miss. A matriz e as opções
 podem ser exportadas/importadas em JSON. Arquivos importados são validados.
@@ -32,6 +43,8 @@ Em hit-or-miss, `1` exige objeto, `-1` exige fundo e `0` ignora a posição.
 A imagem é binarizada usando o limiar configurado. Nas outras operações,
 somente as células `1` participam. Deve existir pelo menos uma célula `1`.
 Âncora `(-1, -1)` significa centro automático; outras coordenadas começam em zero.
+No Hit-or-miss, as bordas constantes são consideradas também no complemento
+da imagem, preservando os padrões que encostam nos limites.
 Referência: [OpenCV Hit-or-Miss](https://docs.opencv.org/4.x/db/d06/tutorial_hitOrMiss.html).
 
 ## Recursos

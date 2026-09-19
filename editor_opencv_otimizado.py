@@ -674,6 +674,10 @@ class EditorOpenCV(RecursosEditor):
     # ================================================================
 
     def parametros_alterados(self, _valor=None):
+        if self.filtro_var.get() in MORFOLOGIA:
+            self.morfologia["iterations"] = max(1, min(30, int(round(self.param1.get()))))
+            self.morfologia["threshold"] = max(0, min(255, int(round(self.param2.get()))))
+            self.atualizar_resumo_kernel()
         self.atualizar_texto_parametros()
         if self.live_preview.get():
             self.agendar_preview()
@@ -740,7 +744,7 @@ class EditorOpenCV(RecursosEditor):
         self.preview_pendente = False
         self.set_processando(True, f"Gerando preview: {filtro}...")
 
-        future = self.executor.submit(self.processar_filtro, base, filtro, p1, p2, self.snapshot_morfologia())
+        future = self.executor.submit(self.processar_filtro, base, filtro, p1, p2, self.opcoes_morfologia_processamento())
         self.root.after(30, self.verificar_future_preview, future, job_id)
 
     def finalizar_preview(self, future, job_id):
@@ -774,6 +778,11 @@ class EditorOpenCV(RecursosEditor):
         p2 = float(self.param2.get())
         base = self.atual.copy()
 
+        if filtro in MORFOLOGIA and not self.morfologia_ativa.get():
+            self.descartar_preview()
+            self.set_status("Morfologia desligada: nenhuma alteração aplicada.")
+            return
+
         self.preview_job_id += 1
         job_id = self.preview_job_id
         self.processando = True
@@ -781,7 +790,7 @@ class EditorOpenCV(RecursosEditor):
         self.filtro_em_aplicacao = filtro
         self.set_processando(True, f"Aplicando: {filtro}...")
 
-        future = self.executor.submit(self.processar_filtro, base, filtro, p1, p2, self.snapshot_morfologia())
+        future = self.executor.submit(self.processar_filtro, base, filtro, p1, p2, self.opcoes_morfologia_processamento())
         self.root.after(30, self.verificar_future_aplicacao, future, job_id)
 
     def verificar_future_aplicacao(self, future, job_id):
@@ -866,8 +875,16 @@ class EditorOpenCV(RecursosEditor):
         }
 
         if filtro in MORFOLOGIA:
-            self.param1_label.config(text="Configure a matriz no botão de morfologia")
-            self.param2_label.config(text="Iterações, âncora e bordas no laboratório")
+            self.param1_label.config(text="Iterações")
+            self.set_slider(self.slider1, self.param1, 1, 30, self.morfologia["iterations"])
+            self.slider1.state(["!disabled"])
+            self.param2_label.config(text="Limiar da imagem binária")
+            self.set_slider(self.slider2, self.param2, 0, 255, self.morfologia["threshold"])
+            if filtro == "Hit-or-miss" or self.morfologia["mode"] == "Binária":
+                self.slider2.state(["!disabled"])
+            if not self.morfologia_ativa.get():
+                self.slider1.state(["disabled"])
+                self.slider2.state(["disabled"])
         elif filtro in PARAMETROS:
             for spec, slider, var, label in zip(PARAMETROS[filtro],
                     (self.slider1, self.slider2), (self.param1, self.param2),
@@ -970,6 +987,8 @@ class EditorOpenCV(RecursosEditor):
 
     def processar_filtro(self, img, filtro, p1, p2, morfologia=None):
         if filtro in MORFOLOGIA:
+            if morfologia is not None and not morfologia.get("enabled", True):
+                return img.copy()
             if morfologia is None:
                 k = self.impar(p1)
                 morfologia = dict(kernel=np.ones((k, k), np.int8), anchor=(-1, -1),
