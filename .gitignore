@@ -5,3 +5,11 @@
 !/requirements.txt
 !/editor_opencv_otimizado.py
 !/editor_recursos.py
+!/editor_recorte.py
+!/editor_medicao.py
+!/editor_segmentacao.py
+!/editor_interface.py
+!/editor_layout.py
+!/tests/
+/tests/*
+!/tests/test_*.py

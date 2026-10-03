@@ -1,6 +1,7 @@
 import sys
 import subprocess
 import importlib.util
+from pathlib import Path
 
 
 def instalar_dependencias():
@@ -49,6 +50,9 @@ import numpy as np
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
+from editor_recorte import JanelaRecorte
+from editor_medicao import JanelaMedicao
+from editor_interface import AbaFerramenta
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -59,10 +63,16 @@ from editor_recursos import (RecursosEditor, MORFOLOGIA, EXTRAS, PARAMETROS,
 class EditorOpenCV(RecursosEditor):
     def __init__(self, root):
         self.root = root
+        if getattr(root, "_editor_abas", None) is not None:
+            root._editor_abas.destroy()
+        root._editor_app = self
+        self.encerrando = self.sincronizando_abas = False
+        self.paginas = {}
+        self.nomes_abas = ("Editor", "Recorte", "Medições", "Segmentação", "Morfologia", "Composição")
         self.inicializar_recursos()
         self.root.title("OpenCV Studio")
-        self.root.geometry("1450x900")
-        self.root.minsize(1050, 680)
+        self.root.geometry("1280x820")
+        self.root.minsize(1000, 680)
 
         # Estado da imagem
         self.original = None
@@ -84,7 +94,7 @@ class EditorOpenCV(RecursosEditor):
         self.resize_debounce_id = None
 
         # UI / preview
-        self.live_preview = tk.BooleanVar(value=True)
+        self.live_preview = tk.BooleanVar(value=False)
         self.zoom = tk.DoubleVar(value=1.0)
         self.filtro_var = tk.StringVar()
         self.categoria_var = tk.StringVar()
@@ -185,208 +195,137 @@ class EditorOpenCV(RecursosEditor):
     # ================================================================
 
     def criar_interface(self):
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(1, weight=1)
+        from editor_layout import construir_interface
+        construir_interface(self)
 
-        # Toolbar
-        toolbar = ttk.Frame(self.root, padding=(10, 8))
-        toolbar.grid(row=0, column=0, sticky="ew")
-        toolbar.columnconfigure(20, weight=1)
+    def criar_placeholder(self, titulo):
+        pagina = ttk.Frame(self.abas, padding=30)
+        pagina.placeholder = True
+        pagina.columnconfigure(0, weight=1)
+        pagina.rowconfigure(0, weight=1)
+        pagina.rowconfigure(2, weight=1)
+        centro = ttk.Frame(pagina)
+        centro.grid(row=1, column=0)
+        ttk.Label(centro, text=titulo, style="Title.TLabel").pack(pady=(0, 10))
+        if titulo == "Segmentação":
+            texto = "Primeiro selecione uma região na aba Medições.\nFeche o contorno e clique em Segmentar ROI."
+            acao, comando = "Selecionar uma região", self.abrir_medicao
+        elif titulo == "Composição":
+            texto = "Combine a imagem atual com uma segunda imagem.\nEscolha a operação e ajuste a mistura."
+            acao, comando = "Escolher segunda imagem", self.abrir_composicao
+        elif titulo == "Morfologia":
+            texto = "Desenhe ou ajuste o elemento estruturante.\nUse a matriz em um filtro da categoria Morfologia."
+            acao, comando = "Editar elemento", self.editar_kernel
+        else:
+            texto = "Abra uma imagem para usar esta ferramenta.\nSua seleção ficará disponível ao alternar entre abas."
+            acao, comando = "Abrir imagem", self.abrir_imagem
+        ttk.Label(centro, text=texto, justify="center", style="Muted.TLabel").pack(pady=(0, 18))
+        ttk.Button(centro, text=acao, command=comando, style="Accent.TButton").pack()
+        self.paginas[titulo] = pagina
+        indice = self.nomes_abas.index(titulo)
+        self.abas.insert(indice if indice < len(self.abas.tabs()) else "end", pagina, text=titulo)
+        return pagina
 
-        self.btn_abrir = ttk.Button(toolbar, text="Abrir", command=self.abrir_imagem)
-        self.btn_abrir.grid(row=0, column=0, padx=3)
+    def registrar_aba(self, pagina):
+        antiga = self.paginas.get(pagina.titulo)
+        self.sincronizando_abas = True
+        try:
+            if antiga is not None and antiga.winfo_exists():
+                antiga.destroy()
+                placeholder = self.paginas.get(pagina.titulo)
+                if placeholder is not antiga and placeholder is not None and placeholder.winfo_exists():
+                    placeholder.destroy()
+            self.paginas[pagina.titulo] = pagina
+            indice = self.nomes_abas.index(pagina.titulo)
+            self.abas.insert(indice if indice < len(self.abas.tabs()) else "end", pagina, text=pagina.titulo)
+            self.abas.select(pagina)
+        finally:
+            self.sincronizando_abas = False
 
-        self.btn_salvar = ttk.Button(toolbar, text="Salvar", command=self.salvar_imagem)
-        self.btn_salvar.grid(row=0, column=1, padx=3)
+    def aba_removida(self, pagina):
+        if self.paginas.get(pagina.titulo) is pagina:
+            if pagina.titulo == "Medições":
+                segmentacao = self.paginas.get("Segmentação")
+                if isinstance(segmentacao, AbaFerramenta):
+                    segmentacao.destroy()
+            self.criar_placeholder(pagina.titulo)
+            if not self.sincronizando_abas:
+                self.selecionar_aba(pagina.retorno)
 
-        self.btn_salvar_como = ttk.Button(toolbar, text="Salvar como", command=self.salvar_como)
-        self.btn_salvar_como.grid(row=0, column=2, padx=3)
+    def selecionar_aba(self, titulo):
+        pagina = self.paginas.get(titulo)
+        if pagina is not None and pagina.winfo_exists():
+            self.abas.select(pagina)
 
-        self.btn_combinar = ttk.Button(
-            toolbar, text="Combinar imagens", command=self.abrir_composicao
-        )
-        self.btn_combinar.grid(row=0, column=3, padx=(10, 3))
+    def aba_selecionada(self, _evento=None):
+        if self.encerrando or self.sincronizando_abas or not self.abas.select():
+            return
+        pagina = self.root.nametowidget(self.abas.select())
+        if not getattr(pagina, "placeholder", False):
+            return
+        titulo = self.abas.tab(pagina, "text")
+        if titulo == "Morfologia":
+            self.editar_kernel()
+        elif self.atual is not None and not self.processando:
+            if titulo == "Recorte":
+                self.abrir_recorte()
+            elif titulo == "Medições":
+                self.abrir_medicao()
 
-        ttk.Separator(toolbar, orient="vertical").grid(row=0, column=4, sticky="ns", padx=8)
+    def sincronizar_ferramentas(self):
+        # Uma seleção pertence à imagem que a originou, inclusive sua resolução.
+        self.sincronizando_abas = True
+        mudou = False
+        try:
+            for pagina in list(self.paginas.values()):
+                if isinstance(pagina, AbaFerramenta) and pagina.origem is not None and pagina.origem is not self.atual:
+                    pagina.destroy()
+                    mudou = True
+        finally:
+            self.sincronizando_abas = False
+        if mudou:
+            self.selecionar_aba("Editor")
 
-        self.btn_undo = ttk.Button(toolbar, text="↶ Desfazer", command=self.desfazer)
-        self.btn_undo.grid(row=0, column=5, padx=3)
-
-        self.btn_redo = ttk.Button(toolbar, text="↷ Refazer", command=self.refazer)
-        self.btn_redo.grid(row=0, column=6, padx=3)
-
-        self.btn_reset = ttk.Button(toolbar, text="Resetar", command=self.resetar)
-        self.btn_reset.grid(row=0, column=7, padx=3)
-
-        ttk.Separator(toolbar, orient="vertical").grid(row=0, column=8, sticky="ns", padx=8)
-
-        self.btn_original = ttk.Button(toolbar, text="Segure: Original")
-        self.btn_original.grid(row=0, column=9, padx=3)
-        self.btn_original.bind("<ButtonPress-1>", self.mostrar_original_temporario)
-        self.btn_original.bind("<ButtonRelease-1>", self.restaurar_preview_temporario)
-        self.btn_original.bind("<Leave>", self.restaurar_preview_temporario)
-
-        ttk.Label(toolbar, text="Zoom").grid(row=0, column=10, padx=(14, 4))
-        self.zoom_combo = ttk.Combobox(
-            toolbar,
-            width=7,
-            state="readonly",
-            values=["25%", "50%", "75%", "100%", "125%", "150%", "200%", "Ajustar"],
-        )
-        self.zoom_combo.set("Ajustar")
-        self.zoom_combo.grid(row=0, column=11, padx=3)
-        self.zoom_combo.bind("<<ComboboxSelected>>", lambda _e: self.atualizar_canvas())
-
-        # Área principal
-        principal = ttk.Panedwindow(self.root, orient="horizontal")
-        principal.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 8))
-
-        lateral = ttk.Frame(principal, width=330)
-        lateral.pack_propagate(False)
-        area = tk.Canvas(lateral, width=320, highlightthickness=0, bg="#eef2f7")
-        barra = ttk.Scrollbar(lateral, orient="vertical", command=area.yview)
-        barra.pack(side="right", fill="y")
-        area.pack(side="left", fill="both", expand=True)
-        area.configure(yscrollcommand=barra.set)
-        painel = ttk.Frame(area, padding=12)
-        painel_id = area.create_window((0, 0), window=painel, anchor="nw")
-        painel.bind("<Configure>", lambda e: area.configure(scrollregion=area.bbox("all")))
-        area.bind("<Configure>", lambda e: area.itemconfigure(painel_id, width=e.width))
-        def rolar_painel(event):
-            widget = event.widget
-            while widget is not None:
-                if widget == lateral:
-                    area.yview_scroll(-int(event.delta / 120), "units")
-                    return "break"
-                widget = getattr(widget, "master", None)
-        self.root.bind("<MouseWheel>", rolar_painel, add="+")
-        visual = ttk.Frame(principal)
-        principal.add(lateral, weight=0)
-        principal.add(visual, weight=1)
-
-        # Painel esquerdo
-        ttk.Label(painel, text="Filtros", font=("Segoe UI", 16, "bold")).pack(anchor="w")
-        ttk.Label(
-            painel,
-            text="Escolha uma categoria e ajuste os parâmetros. O preview não altera a imagem até você clicar em Aplicar.",
-            wraplength=290,
-        ).pack(anchor="w", pady=(4, 12))
-
-        ttk.Label(painel, text="Categoria").pack(anchor="w")
-        self.combo_categoria = ttk.Combobox(
-            painel,
-            textvariable=self.categoria_var,
-            state="readonly",
-            values=list(self.filtros.keys()),
-        )
-        self.combo_categoria.pack(fill="x", pady=(2, 10))
-        self.combo_categoria.bind("<<ComboboxSelected>>", self.mudar_categoria)
-
-        ttk.Label(painel, text="Filtro").pack(anchor="w")
-        self.combo_filtro = ttk.Combobox(
-            painel,
-            textvariable=self.filtro_var,
-            state="readonly",
-        )
-        self.combo_filtro.pack(fill="x", pady=(2, 12))
-        self.combo_filtro.bind("<<ComboboxSelected>>", self.filtro_selecionado)
-
-        self.adicionar_recursos_interface(painel)
-        ttk.Separator(painel).pack(fill="x", pady=4)
-
-        self.param1_label = ttk.Label(painel, text="Parâmetro 1")
-        self.param1_label.pack(anchor="w", pady=(10, 2))
-        self.slider1 = ttk.Scale(
-            painel,
-            variable=self.param1,
-            from_=0,
-            to=255,
-            command=self.parametros_alterados,
-        )
-        self.slider1.pack(fill="x")
-        self.param1_valor = ttk.Label(painel, text="50")
-        self.param1_valor.pack(anchor="e")
-
-        self.param2_label = ttk.Label(painel, text="Parâmetro 2")
-        self.param2_label.pack(anchor="w", pady=(8, 2))
-        self.slider2 = ttk.Scale(
-            painel,
-            variable=self.param2,
-            from_=0,
-            to=255,
-            command=self.parametros_alterados,
-        )
-        self.slider2.pack(fill="x")
-        self.param2_valor = ttk.Label(painel, text="100")
-        self.param2_valor.pack(anchor="e")
-
-        self.chk_preview = ttk.Checkbutton(
-            painel,
-            text="Preview automático",
-            variable=self.live_preview,
-            command=self.on_toggle_preview,
-        )
-        self.chk_preview.pack(anchor="w", pady=(12, 4))
-
-        self.btn_preview = ttk.Button(painel, text="Atualizar preview", command=self.agendar_preview_imediato)
-        self.btn_preview.pack(fill="x", pady=3)
-
-        self.btn_aplicar = ttk.Button(painel, text="Aplicar filtro", style="Accent.TButton", command=self.aplicar_filtro)
-        self.btn_aplicar.pack(fill="x", pady=(8, 4))
-
-        self.btn_descartar = ttk.Button(painel, text="Descartar preview", command=self.descartar_preview)
-        self.btn_descartar.pack(fill="x", pady=3)
-
-        ttk.Separator(painel).pack(fill="x", pady=12)
-
-        self.info_label = ttk.Label(painel, text="Nenhuma imagem carregada.", wraplength=290)
-        self.info_label.pack(anchor="w")
-
-        # Canvas central com scrollbars
-        visual.rowconfigure(0, weight=1)
-        visual.columnconfigure(0, weight=1)
-
-        self.canvas = tk.Canvas(visual, bg="#171717", highlightthickness=0)
-        self.canvas.grid(row=0, column=0, sticky="nsew")
-
-        scroll_y = ttk.Scrollbar(visual, orient="vertical", command=self.canvas.yview)
-        scroll_y.grid(row=0, column=1, sticky="ns")
-        scroll_x = ttk.Scrollbar(visual, orient="horizontal", command=self.canvas.xview)
-        scroll_x.grid(row=1, column=0, sticky="ew")
-        self.canvas.configure(xscrollcommand=scroll_x.set, yscrollcommand=scroll_y.set)
-        self.canvas.bind("<Configure>", self.on_canvas_resize)
-
-        self.canvas_image_id = None
-        self.tk_image = None
-
-        # Status bar
-        status = ttk.Frame(self.root, padding=(10, 4))
-        status.grid(row=2, column=0, sticky="ew")
-        status.columnconfigure(0, weight=1)
-
-        self.status_label = ttk.Label(status, text="Pronto")
-        self.status_label.grid(row=0, column=0, sticky="w")
-
-        self.progress = ttk.Progressbar(status, mode="indeterminate", length=160)
-        self.progress.grid(row=0, column=1, sticky="e")
-
-        # Estado inicial
-        primeira_categoria = next(iter(self.filtros))
-        self.categoria_var.set(primeira_categoria)
-        self.combo_filtro["values"] = self.filtros[primeira_categoria]
-        self.filtro_var.set(self.filtros[primeira_categoria][0])
-        self.configurar_parametros()
-        self.atualizar_botoes()
+    def atalho_local(self, acao, evento):
+        if isinstance(evento.widget, (ttk.Entry, ttk.Spinbox, ttk.Combobox, tk.Entry, tk.Text)):
+            return
+        pagina = self.root.nametowidget(self.abas.select())
+        if pagina is self.paginas["Editor"]:
+            if acao == "enter":
+                self.aplicar_filtro()
+            else:
+                self.descartar_preview()
+        else:
+            handler = getattr(pagina, f"ao_{acao}", None)
+            if handler is not None:
+                handler()
+        return "break"
 
     def configurar_atalhos(self):
         self.root.bind("<Control-o>", lambda _e: self.abrir_imagem())
         self.root.bind("<Control-s>", lambda _e: self.salvar_imagem())
         self.root.bind("<Control-Shift-S>", lambda _e: self.salvar_como())
-        self.root.bind("<Control-z>", lambda _e: self.desfazer())
-        self.root.bind("<Control-y>", lambda _e: self.refazer())
-        self.root.bind("<Return>", lambda e: self.aplicar_filtro()
-                       if not isinstance(e.widget, (ttk.Entry, ttk.Spinbox, ttk.Combobox)) else None)
-        self.root.bind("<Escape>", lambda _e: self.descartar_preview())
+        self.root.bind("<Control-z>", lambda e: self.atalho_historico(e))
+        self.root.bind("<Control-y>", lambda e: self.atalho_historico(e, refazer=True))
+        self.root.bind("<Return>", lambda e: self.atalho_local("enter", e))
+        self.root.bind("<Escape>", lambda e: self.atalho_local("escape", e))
+        self.root.bind("<Control-Tab>", lambda e: self.alternar_aba(1))
+        self.root.bind("<Control-Shift-Tab>", lambda e: self.alternar_aba(-1))
+
+    def alternar_aba(self, direcao):
+        indice = self.abas.index(self.abas.select())
+        self.abas.select((indice + direcao) % len(self.abas.tabs()))
+        return "break"
+
+    def atalho_historico(self, evento, refazer=False):
+        if isinstance(evento.widget, (ttk.Entry, ttk.Spinbox, ttk.Combobox, tk.Entry, tk.Text)):
+            return
+        pagina = self.root.nametowidget(self.abas.select())
+        if pagina is self.paginas["Editor"]:
+            self.refazer() if refazer else self.desfazer()
+        elif isinstance(pagina, JanelaMedicao) and not refazer:
+            pagina.remover_ponto()
+        return "break"
 
     # ================================================================
     # Arquivos
@@ -424,6 +363,7 @@ class EditorOpenCV(RecursosEditor):
             self.atualizar_canvas()
             self.atualizar_info()
             self.atualizar_botoes()
+            self.selecionar_aba("Editor")
             self.set_status("Imagem aberta")
 
             if self.live_preview.get():
@@ -431,6 +371,40 @@ class EditorOpenCV(RecursosEditor):
 
         except Exception as erro:
             messagebox.showerror("Erro", f"Não foi possível abrir a imagem.\n\n{erro}")
+
+    def abrir_medicao(self):
+        if self.atual is None or self.processando:
+            return
+        self.descartar_preview()
+        if getattr(self, "_imagem_medicoes", None) is not self.atual:
+            self._imagem_medicoes = self.atual
+            self._dados_medicoes = {}
+        existente = self.paginas.get("Medições")
+        if isinstance(existente, AbaFerramenta) and existente.origem is self.atual:
+            existente.lift()
+        else:
+            JanelaMedicao(self.root, self.atual, self._dados_medicoes)
+
+    def abrir_recorte(self):
+        if self.atual is None or self.processando:
+            return
+        self.descartar_preview()
+        existente = self.paginas.get("Recorte")
+        if isinstance(existente, AbaFerramenta) and existente.origem is self.atual:
+            existente.lift()
+        else:
+            JanelaRecorte(self.root, self.atual, self.aplicar_recorte)
+
+    def aplicar_recorte(self, resultado, pixels):
+        self.cancelar_preview_agendado()
+        self.guardar_historico()
+        self.atual = resultado
+        self.preview = None
+        self.preview_job_id += 1
+        self.atualizar_canvas()
+        self.atualizar_info()
+        self.atualizar_botoes()
+        self.set_status(f"Recorte aplicado: {pixels:,} pixels na forma selecionada")
 
     def salvar_imagem(self):
         if self.atual is None:
@@ -477,6 +451,8 @@ class EditorOpenCV(RecursosEditor):
 
     def abrir_composicao(self):
         """Abre uma segunda imagem e mostra as opções de composição OpenCV."""
+        if self.processando:
+            return
         if self.atual is None:
             messagebox.showinfo("Combinar imagens", "Abra a imagem principal primeiro.")
             return
@@ -498,14 +474,10 @@ class EditorOpenCV(RecursosEditor):
             messagebox.showerror("Combinar imagens", f"Não foi possível abrir a segunda imagem.\n\n{erro}")
             return
 
-        janela = tk.Toplevel(self.root)
-        janela.title("Combinar imagens")
-        janela.transient(self.root)
-        janela.resizable(False, False)
-        janela.grab_set()
+        janela = AbaFerramenta(self.root, "Composição", origem=self.atual)
 
         corpo = ttk.Frame(janela, padding=16)
-        corpo.pack(fill="both", expand=True)
+        corpo.pack(anchor="n", fill="x", padx=80, pady=30)
         h1, w1 = self.atual.shape[:2]
         h2, w2 = segunda.shape[:2]
         ttk.Label(corpo, text="Composição com OpenCV", font=("Segoe UI", 14, "bold")).pack(anchor="w")
@@ -679,6 +651,7 @@ class EditorOpenCV(RecursosEditor):
             self.morfologia["threshold"] = max(0, min(255, int(round(self.param2.get()))))
             self.atualizar_resumo_kernel()
         self.atualizar_texto_parametros()
+
         if self.live_preview.get():
             self.agendar_preview()
 
@@ -962,9 +935,30 @@ class EditorOpenCV(RecursosEditor):
 
         self.atualizar_texto_parametros()
 
+    def atualizar_controles_filtro(self):
+        if hasattr(self, "ajustes"):
+            if self.filtro_var.get() in MORFOLOGIA:
+                self.morfologia_box.pack(fill="x", before=self.chk_preview, pady=6)
+            else:
+                self.morfologia_box.pack_forget()
+            for numero in (1, 2):
+                for widget in (getattr(self, f"param{numero}_label"), getattr(self, f"slider{numero}"), getattr(self, f"param{numero}_valor")):
+                    widget.pack_forget()
+            for numero in (1, 2):
+                slider = getattr(self, f"slider{numero}")
+                if not slider.instate(["disabled"]):
+                    getattr(self, f"param{numero}_label").pack(anchor="w", pady=(8, 2))
+                    slider.pack(fill="x")
+                    getattr(self, f"param{numero}_valor").pack(anchor="e")
+            if all(getattr(self, f"slider{numero}").instate(["disabled"]) for numero in (1, 2)):
+                self.ajustes.pack_forget()
+            else:
+                self.ajustes.pack(fill="x", before=self.chk_preview)
+
     def atualizar_texto_parametros(self):
         self.param1_valor.config(text=f"{self.param1.get():.0f}")
         self.param2_valor.config(text=f"{self.param2.get():.0f}")
+        self.atualizar_controles_filtro()
 
     @staticmethod
     def garantir_bgr(img):
@@ -1251,13 +1245,8 @@ class EditorOpenCV(RecursosEditor):
         imagem = self.imagem_para_exibir()
         if imagem is None:
             self.canvas.delete("all")
-            self.canvas.create_text(
-                max(250, self.canvas.winfo_width() // 2),
-                max(180, self.canvas.winfo_height() // 2),
-                text="Abra uma imagem para começar",
-                fill="white",
-                font=("Segoe UI", 18),
-            )
+            self.canvas.create_window(max(250, self.canvas.winfo_width()//2),
+                max(180, self.canvas.winfo_height()//2), window=self.boas_vindas, anchor="center")
             return
         self._renderizar(imagem)
 
@@ -1285,7 +1274,7 @@ class EditorOpenCV(RecursosEditor):
             resample = Image.Resampling.LANCZOS if escala < 1 else Image.Resampling.BICUBIC
             pil = pil.resize((novo_w, novo_h), resample)
 
-        self.tk_image = ImageTk.PhotoImage(pil)
+        self.tk_image = ImageTk.PhotoImage(pil, master=self.canvas)
         self.canvas.delete("all")
 
         canvas_w = max(self.canvas.winfo_width(), novo_w)
@@ -1306,18 +1295,23 @@ class EditorOpenCV(RecursosEditor):
             self.descartar_preview()
 
     def atualizar_info(self):
+        self.sincronizar_ferramentas()
         if self.atual is None:
             self.info_label.config(text="Nenhuma imagem carregada.")
             return
         h, w = self.atual.shape[:2]
+        nome = Path(self.caminho_atual).name if self.caminho_atual else "Imagem atual"
+        self.imagem_label.config(text=f"{nome}  ·  {w} × {h} pixels")
         canais = 1 if self.atual.ndim == 2 else self.atual.shape[2]
         memoria = self.atual.nbytes / (1024 * 1024)
         self.info_label.config(
-            text=f"Resolução: {w} × {h}\nCanais: {canais}\nTipo: {self.atual.dtype}\nMemória: {memoria:.1f} MB"
+            text=f"Resolução: {w} × {h}\nPixels: {w * h:,} ({w * h / 1e6:.2f} MP)\nCanais: {canais}\nTipo: {self.atual.dtype}\nMemória: {memoria:.1f} MB"
         )
 
     def atualizar_botoes(self):
         tem_imagem = self.atual is not None
+        self.btn_recorte.state(["!disabled"] if tem_imagem and not self.processando else ["disabled"])
+        self.btn_medicao.state(["!disabled"] if tem_imagem and not self.processando else ["disabled"])
         self.btn_abrir.state(["disabled"] if self.processando else ["!disabled"])
         self.btn_salvar.state(["!disabled"] if tem_imagem else ["disabled"])
         self.btn_salvar_como.state(["!disabled"] if tem_imagem else ["disabled"])
@@ -1347,6 +1341,10 @@ class EditorOpenCV(RecursosEditor):
         self.status_label.config(text=texto)
 
     def fechar(self):
+        self.encerrando = True
+        for pagina in list(self.paginas.values()):
+            if isinstance(pagina, AbaFerramenta):
+                pagina.destroy()
         self.cancelar_preview_agendado()
         if self.resize_debounce_id is not None:
             self.root.after_cancel(self.resize_debounce_id)

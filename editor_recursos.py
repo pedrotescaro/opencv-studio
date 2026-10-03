@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import cv2
 import numpy as np
+from editor_interface import AbaFerramenta, configurar_estilo
 
 MORFOLOGIA = {
     "Erosão": cv2.MORPH_ERODE, "Dilatação": cv2.MORPH_DILATE,
@@ -184,29 +185,28 @@ class RecursosEditor:
         self.usar_elemento_configurado = tk.BooleanVar(value=True)
         self.morfologia = dict(kernel=np.ones((3, 3), np.int8), anchor=(-1, -1),
                                iterations=1, border="Padrão morfológico", mode="Colorida", threshold=127)
-        style = ttk.Style(self.root)
-        style.theme_use("clam")
-        style.configure("TFrame", background="#eef2f7")
-        style.configure("TLabel", background="#eef2f7", foreground="#223047", font=("Segoe UI", 10))
-        style.configure("TButton", padding=(8, 6), font=("Segoe UI", 10))
-        style.configure("Accent.TButton", background="#2563eb", foreground="white")
-        style.map("Accent.TButton", background=[("active", "#1d4ed8"), ("disabled", "#a8b3c5")])
+        configurar_estilo(self.root)
 
     def adicionar_recursos_interface(self, painel):
         self.busca = tk.StringVar()
-        ttk.Label(painel, text="Buscar em todos os filtros").pack(anchor="w")
-        entry = ttk.Entry(painel, textvariable=self.busca)
+        self.busca_box = ttk.Frame(painel)
+        self.busca_box.pack(fill="x", pady=(8, 0))
+        ttk.Label(self.busca_box, text="Buscar um filtro", style="Muted.TLabel").pack(anchor="w")
+        entry = ttk.Entry(self.busca_box, textvariable=self.busca)
         entry.pack(fill="x", pady=(2, 4))
         entry.bind("<KeyRelease>", self.buscar_filtros)
-        self.resultados = tk.Listbox(painel, height=4, exportselection=False, font=("Segoe UI", 10))
+        self.resultados = tk.Listbox(self.busca_box, height=4, exportselection=False, font=("Segoe UI", 10),
+                                     bg="white", fg="#203047", relief="flat", highlightthickness=0,
+                                     selectbackground="#dbeafe", selectforeground="#203047")
         self.resultados.bind("<<ListboxSelect>>", self.escolher_busca)
-        self.btn_kernel = ttk.Button(painel, text="Elemento estruturante e morfologia…", command=self.editar_kernel)
-        ttk.Checkbutton(painel, text="Ativar filtro morfológico", variable=self.morfologia_ativa,
+        self.morfologia_box = ttk.LabelFrame(painel, text="Opções de morfologia", padding=8)
+        self.btn_kernel = ttk.Button(self.morfologia_box, text="Editar elemento estruturante →", command=self.editar_kernel)
+        ttk.Checkbutton(self.morfologia_box, text="Ativar filtro morfológico", variable=self.morfologia_ativa,
                         command=self.alternar_morfologia).pack(anchor="w", pady=(6, 0))
-        ttk.Checkbutton(painel, text="Usar matriz personalizada", variable=self.usar_elemento_configurado,
+        ttk.Checkbutton(self.morfologia_box, text="Usar matriz personalizada", variable=self.usar_elemento_configurado,
                         command=self.alternar_morfologia).pack(anchor="w")
         self.btn_kernel.pack(fill="x", pady=4)
-        self.resumo_kernel = ttk.Label(painel, wraplength=280)
+        self.resumo_kernel = ttk.Label(self.morfologia_box, wraplength=230, style="Muted.TLabel")
         self.resumo_kernel.pack(fill="x", pady=(0, 5))
         self.atualizar_resumo_kernel()
 
@@ -223,7 +223,7 @@ class RecursosEditor:
             for filtro in lista:
                 if termo in normalizar(filtro):
                     self.resultados.insert("end", filtro)
-        self.resultados.pack(fill="x", before=self.btn_kernel)
+        self.resultados.pack(fill="x")
 
     def escolher_busca(self, _event=None):
         if not self.resultados.curselection():
@@ -267,16 +267,7 @@ class RecursosEditor:
         if getattr(self, "janela_kernel", None) is not None and self.janela_kernel.winfo_exists():
             self.janela_kernel.lift()
             return
-        win = self.janela_kernel = tk.Toplevel(self.root)
-        win.title("Laboratório de morfologia • elemento estruturante")
-        # No Windows, transient remove os botões de maximizar/minimizar.
-        # Use uma janela normal, mantendo apenas a modalidade do laboratório.
-        win.resizable(True, True)
-        screen_w, screen_h = win.winfo_screenwidth(), win.winfo_screenheight()
-        width, height = min(900, int(screen_w * 0.85)), min(720, int(screen_h * 0.80))
-        win.geometry(f"{width}x{height}+{max(0, (screen_w - width) // 2)}+{max(0, (screen_h - height) // 2)}")
-        win.minsize(480, 360)
-        win.grab_set()
+        win = self.janela_kernel = AbaFerramenta(self.root, "Morfologia")
         win.columnconfigure(0, weight=1)
         win.rowconfigure(0, weight=1)
         viewport = tk.Canvas(win, highlightthickness=0, bg="#eef2f7")
@@ -456,6 +447,5 @@ class RecursosEditor:
         ttk.Button(buttons, text="Exportar JSON", command=save).grid(row=0, column=1, sticky="ew", padx=3, pady=3)
         ttk.Button(buttons, text="Cancelar", command=win.destroy).grid(row=1, column=0, sticky="ew", padx=3, pady=3)
         ttk.Button(buttons, text="Usar elemento", style="Accent.TButton", command=confirm).grid(row=1, column=1, sticky="ew", padx=3, pady=3)
-        ttk.Sizegrip(win).grid(row=3, column=1, sticky="se")
-        win.bind("<Return>", lambda e: (confirm(), "break")[-1])
-        win.bind("<Escape>", lambda e: (win.destroy(), "break")[-1])
+        win.ao_enter = confirm
+        win.ao_escape = win.destroy
