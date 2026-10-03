@@ -5,7 +5,7 @@ from tkinter import ttk, messagebox
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
-from editor_interface import AbaFerramenta, CANVAS
+from editor_interface import AbaFerramenta, CANVAS, VisualizacaoRedimensionavel
 
 
 FORMAS_RECORTE = ("Retângulo", "Quadrado", "Elipse", "Círculo", "Losango")
@@ -70,19 +70,21 @@ class JanelaRecorte(AbaFerramenta):
         zoom.pack(side="right")
         ttk.Label(topo, text="Zoom", style="Muted.TLabel").pack(side="right", padx=6)
         zoom.bind("<<ComboboxSelected>>", self.renderizar)
+        self.visualizacao = VisualizacaoRedimensionavel(self)
+        self.visualizacao.pack(fill="both", expand=True, padx=10)
+        controles = self.visualizacao.controles
         h, w = imagem.shape[:2]
-        ttk.Label(self, text=f"Imagem: {w} × {h} = {w * h:,} pixels ({w * h / 1e6:.2f} MP)").pack(anchor="w", padx=10)
-        ttk.Label(self, text="Arraste na imagem para selecionar. A área externa às formas fica preta.",
+        ttk.Label(controles, text=f"Imagem: {w} × {h} = {w * h:,} pixels ({w * h / 1e6:.2f} MP)").pack(anchor="w", padx=10)
+        ttk.Label(controles, text="Arraste na imagem para selecionar. A área externa às formas fica preta.",
                   wraplength=530).pack(anchor="w", padx=10, pady=5)
-        rodape = ttk.Frame(self, padding=10)
+        rodape = ttk.Frame(controles, padding=10)
         rodape.pack(side="bottom", fill="x")
         self.info = ttk.Label(rodape, text="Nenhuma seleção.")
         self.info.pack(anchor="w")
         self.botao = ttk.Button(rodape, text="Aplicar recorte", command=self.aplicar, state="disabled", style="Accent.TButton")
         self.botao.pack(side="right", pady=6)
         ttk.Button(rodape, text="Voltar ao editor", command=self.destroy).pack(side="right", padx=8)
-        visual = ttk.Frame(self)
-        visual.pack(fill="both", expand=True, padx=10)
+        visual = self.visualizacao.visual
         visual.rowconfigure(0, weight=1)
         visual.columnconfigure(0, weight=1)
         self.canvas = tk.Canvas(visual, bg=CANVAS, highlightthickness=0)

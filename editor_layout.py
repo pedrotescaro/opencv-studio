@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from editor_interface import CANVAS, FUNDO, rolar_em
+from editor_interface import CANVAS, FUNDO, rolar_em, VisualizacaoRedimensionavel
 
 
 def construir_interface(app):
@@ -58,9 +58,9 @@ def construir_interface(app):
     app.zoom_combo.pack(side="left")
     app.zoom_combo.bind("<<ComboboxSelected>>", lambda e: app.atualizar_canvas())
 
-    principal = ttk.Panedwindow(editor, orient="horizontal")
-    principal.grid(row=1, column=0, sticky="nsew")
-    lateral = ttk.Frame(principal, width=300)
+    app.visualizacao = VisualizacaoRedimensionavel(editor, orient="horizontal", controles_primeiro=True)
+    app.visualizacao.grid(row=1, column=0, sticky="nsew")
+    lateral = app.visualizacao.controles
     lateral.pack_propagate(False)
     area = tk.Canvas(lateral, width=285, bg=FUNDO, highlightthickness=0)
     barra = ttk.Scrollbar(lateral, command=area.yview)
@@ -72,9 +72,7 @@ def construir_interface(app):
     painel.bind("<Configure>", lambda e: area.configure(scrollregion=area.bbox("all")))
     area.bind("<Configure>", lambda e: area.itemconfigure(painel_id, width=e.width))
     rolar_em(root, lateral, area)
-    visual = ttk.Frame(principal)
-    principal.add(lateral, weight=0)
-    principal.add(visual, weight=1)
+    visual = app.visualizacao.visual
 
     ttk.Label(painel, text="Filtros", style="Section.TLabel").pack(anchor="w")
     app.adicionar_recursos_interface(painel)

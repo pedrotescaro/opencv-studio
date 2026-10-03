@@ -82,6 +82,79 @@ class AbaFerramenta(ttk.Frame):
             editor.aba_removida(self)
 
 
+class VisualizacaoRedimensionavel(ttk.Frame):
+    """Imagem e controles separados por uma divisória visível e arrastável."""
+    def __init__(self, parent, orient="vertical", controles_primeiro=False):
+        super().__init__(parent)
+        self.orient = orient
+        self.controles_primeiro = controles_primeiro
+        self.expandida = False
+        self.posicao = None
+        self.inicializada = False
+        barra = ttk.Frame(self, padding=(4, 0, 4, 4))
+        barra.pack(fill="x")
+        ttk.Label(barra, text="Arraste a divisória para ajustar o espaço da imagem", style="Muted.TLabel").pack(side="left")
+        self.botao_expandir = ttk.Button(barra, text="Expandir imagem", command=self.alternar)
+        self.botao_expandir.pack(side="right")
+        self.divisao = tk.PanedWindow(self, orient=orient, bg="#cbd5e1", borderwidth=0,
+            sashwidth=10, sashrelief="flat", showhandle=True, handlesize=8,
+            sashcursor="sb_v_double_arrow" if orient == "vertical" else "sb_h_double_arrow",
+            opaqueresize=True)
+        self.divisao.pack(fill="both", expand=True)
+        self.visual = ttk.Frame(self.divisao)
+        self.painel_controles = ttk.Frame(self.divisao, width=300, height=120)
+        if orient == "vertical":
+            # Mesmo com o painel reduzido, todas as ações continuam acessíveis.
+            self.rolagem = tk.Canvas(self.painel_controles, height=120, bg=FUNDO, highlightthickness=0)
+            scroll = ttk.Scrollbar(self.painel_controles, command=self.rolagem.yview)
+            scroll.pack(side="right", fill="y")
+            self.rolagem.pack(fill="both", expand=True)
+            self.rolagem.configure(yscrollcommand=scroll.set)
+            self.controles = ttk.Frame(self.rolagem)
+            item = self.rolagem.create_window((0, 0), window=self.controles, anchor="nw")
+            self.controles.bind("<Configure>", lambda e: self.rolagem.configure(scrollregion=self.rolagem.bbox("all")))
+            self.rolagem.bind("<Configure>", lambda e: self.rolagem.itemconfigure(item, width=e.width))
+            rolar_em(self.winfo_toplevel(), self.painel_controles, self.rolagem)
+        else:
+            self.controles = self.painel_controles
+        for painel in ((self.painel_controles, self.visual) if controles_primeiro else (self.visual, self.painel_controles)):
+            self.divisao.add(painel, minsize=70 if orient == "vertical" else 160,
+                stretch="always" if painel == self.visual else "never")
+        self.divisao.bind("<Map>", self._iniciar, add="+")
+
+    def _iniciar(self, _evento=None):
+        if self.inicializada:
+            return
+        self.inicializada = True
+        self.after_idle(self._posicionar_inicial)
+
+    def _posicionar_inicial(self):
+        if not self.winfo_exists() or self.expandida:
+            return
+        tamanho = self.divisao.winfo_height() if self.orient == "vertical" else self.divisao.winfo_width()
+        pedido = self.controles.winfo_reqheight() if self.orient == "vertical" else 300
+        controles = min(max(80, pedido), int(tamanho * .45))
+        posicao = controles if self.controles_primeiro else tamanho - controles - 10
+        self.divisao.sash_place(0, posicao if self.orient == "horizontal" else 0,
+                              posicao if self.orient == "vertical" else 0)
+
+    def alternar(self):
+        if self.expandida:
+            opts = dict(minsize=70 if self.orient == "vertical" else 160, stretch="never")
+            if self.controles_primeiro:
+                opts["before"] = self.visual
+            self.divisao.add(self.painel_controles, **opts)
+            self.divisao.update_idletasks()
+            if self.posicao is not None:
+                self.divisao.sash_place(0, *self.posicao)
+            self.botao_expandir.configure(text="Expandir imagem")
+        else:
+            self.posicao = self.divisao.sash_coord(0)
+            self.divisao.forget(self.painel_controles)
+            self.botao_expandir.configure(text="Mostrar controles")
+        self.expandida = not self.expandida
+
+
 def rolar_em(root, container, canvas):
     """Roda do mouse limitada ao painel sob o ponteiro, sem interferir no canvas."""
     def rolar(event):

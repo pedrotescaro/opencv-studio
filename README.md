@@ -32,6 +32,13 @@ executar segmentação) e não interfere quando você digita em um campo. Escape
 limpa a seleção de recorte/medição ou descarta a prévia na aba Editor.
 Ctrl+Z/Ctrl+Y controlam o histórico na aba Editor; Ctrl+Z volta um ponto na
 aba Medições. Zoom e barras de rolagem ajudam a trabalhar com detalhes.
+Nas abas **Editor**, **Recorte**, **Medições** e **Segmentação**, arraste a
+divisória com a alça entre a imagem e os controles para ajustar o tamanho dos
+painéis. **Expandir imagem** recolhe os controles; **Mostrar controles** restaura
+o painel e sua divisão anterior. No zoom **Ajustar**, a imagem acompanha o
+espaço disponível automaticamente. O redimensionamento mantém as seleções e
+não altera a resolução original nem a contagem de pixels. Os controles de
+recorte e medição têm rolagem para continuar acessíveis quando o painel é reduzido.
 Em Medições, **Resultados — mostrar / ocultar** recolhe a tabela para dar
 mais espaço à imagem; a tabela abre ao adicionar uma medição. A escala física
 e os ajustes avançados da segmentação também podem ser recolhidos.

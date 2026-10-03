@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image, ImageTk
 
 from editor_recorte import FORMAS_RECORTE, limites_recorte, mascara_recorte
-from editor_interface import AbaFerramenta, CANVAS
+from editor_interface import AbaFerramenta, CANVAS, VisualizacaoRedimensionavel
 
 
 FORMAS_MEDICAO = ("Polígono", "Desenho livre") + FORMAS_RECORTE
@@ -111,30 +111,32 @@ class JanelaMedicao(AbaFerramenta):
         zoom = ttk.Combobox(zoom_box, textvariable=self.zoom, values=("Ajustar", "25%", "50%", "100%", "200%", "400%"), width=8, state="readonly")
         zoom.pack(side="left")
         zoom.bind("<<ComboboxSelected>>", self.renderizar)
-        self.ajuda = ttk.Label(self, wraplength=950, style="Muted.TLabel")
-        self.ajuda.pack(fill="x", padx=10)
+        self.visualizacao = VisualizacaoRedimensionavel(self)
+        self.visualizacao.pack(fill="both", expand=True, padx=8)
+        controles = self.visualizacao.controles
+        detalhes = ttk.Frame(controles)
 
         self.escala_aberta = tk.BooleanVar(value=dados["escala"] is not None)
-        ttk.Checkbutton(self, text="Configurar escala física (opcional)", variable=self.escala_aberta,
+        ttk.Checkbutton(detalhes, text="Configurar escala física (opcional)", variable=self.escala_aberta,
                         command=self.alternar_escala).pack(anchor="w", padx=8)
-        escala = self.escala_box = ttk.LabelFrame(self, text="Comprimento conhecido na imagem", padding=8)
+        escala = self.escala_box = ttk.LabelFrame(detalhes, text="Comprimento conhecido na imagem", padding=8)
         ttk.Button(escala, text="Marcar referência (2 cliques)", command=self.marcar_referencia).pack(side="left")
         ttk.Label(escala, text="Distância real").pack(side="left", padx=5)
         ttk.Entry(escala, textvariable=self.distancia, width=9).pack(side="left")
         ttk.Combobox(escala, textvariable=self.unidade, values=("cm", "m"), width=4, state="readonly").pack(side="left", padx=4)
         ttk.Button(escala, text="Calibrar", command=self.calibrar).pack(side="left")
         ttk.Button(escala, text="Limpar escala", command=self.limpar_escala).pack(side="left", padx=4)
-        self.info_escala = ttk.Label(self, wraplength=1050)
+        self.info_escala = ttk.Label(detalhes, wraplength=850)
         self.info_escala.pack(fill="x", padx=10, pady=(0, 4))
         self.alternar_escala()
 
-        rodape = ttk.Frame(self, padding=8)
+        rodape = ttk.Frame(controles, padding=8)
         rodape.pack(side="bottom", fill="x")
         ttk.Button(rodape, text="Voltar ao editor", command=self.destroy).pack(side="right")
         ttk.Button(rodape, text="Exportar medições CSV", command=self.exportar).pack(side="right", padx=6)
         ttk.Button(rodape, text="Excluir medição", command=self.excluir).pack(side="left")
 
-        resultados_container = ttk.Frame(self, padding=(8, 0))
+        resultados_container = ttk.Frame(controles, padding=(8, 0))
         resultados_container.pack(side="bottom", fill="x")
         self.mostrar_resultados = tk.BooleanVar(value=bool(dados["regioes"]))
         self.resultados_cabecalho = ttk.Checkbutton(resultados_container, text="Resultados",
@@ -150,7 +152,8 @@ class JanelaMedicao(AbaFerramenta):
         barra.pack(side="right", fill="y")
         self.tabela.configure(yscrollcommand=barra.set)
 
-        selecionar = ttk.Frame(self, padding=8)
+        detalhes.pack(side="bottom", fill="x")
+        selecionar = ttk.Frame(controles, padding=8)
         selecionar.pack(side="bottom", fill="x")
         ttk.Label(selecionar, text="Nome").pack(side="left")
         ttk.Entry(selecionar, textvariable=self.nome, width=24).pack(side="left", padx=6)
@@ -158,11 +161,12 @@ class JanelaMedicao(AbaFerramenta):
         self.btn_adicionar.pack(side="left")
         self.btn_segmentar = ttk.Button(selecionar, text="Segmentar ROI…", command=self.abrir_segmentacao, state="disabled")
         self.btn_segmentar.pack(side="left", padx=6)
-        self.info = ttk.Label(self, text="Nenhuma seleção.", wraplength=850, style="Muted.TLabel")
+        self.info = ttk.Label(controles, text="Nenhuma seleção.", wraplength=850, style="Muted.TLabel")
         self.info.pack(side="bottom", anchor="w", padx=12, pady=(4, 0))
 
-        visual = ttk.Frame(self)
-        visual.pack(fill="both", expand=True, padx=8)
+        self.ajuda = ttk.Label(controles, wraplength=850, style="Muted.TLabel")
+        self.ajuda.pack(fill="x", padx=10, pady=4)
+        visual = self.visualizacao.visual
         visual.rowconfigure(0, weight=1)
         visual.columnconfigure(0, weight=1)
         self.canvas = tk.Canvas(visual, bg=CANVAS, highlightthickness=0)

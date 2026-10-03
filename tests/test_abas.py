@@ -125,6 +125,53 @@ class AbasTests(unittest.TestCase):
         self.assertEqual(seg.ajustes_box.winfo_manager(), "")
         self.assertTrue(seg.tabela.winfo_ismapped())
 
+    def test_arrastar_divisoria_amplia_imagem_sem_alterar_medicao(self):
+        self.root.deiconify()
+        self.app.atual = np.full((1600, 1200, 3), 100, np.uint8)
+        self.app.atualizar_info()
+        medicao = self.abrir_medicao()
+        self.root.update()
+        altura = medicao.canvas.winfo_height()
+        escala = medicao.transformacao[3]
+        pixels = medicao.regiao_atual()["pixels"]
+        divisao = medicao.visualizacao.divisao
+        x, y = divisao.sash_coord(0)
+        # Exercita o arraste pelo mesmo binding nativo usado pelo mouse.
+        divisao.event_generate("<ButtonPress-1>", x=x+20, y=y+4)
+        divisao.event_generate("<B1-Motion>", x=x+20, y=y+84)
+        divisao.event_generate("<ButtonRelease-1>", x=x+20, y=y+84)
+        self.root.update()
+        self.assertGreater(medicao.canvas.winfo_height(), altura+60)
+        self.assertGreater(medicao.transformacao[3], escala)
+        self.assertEqual(medicao.regiao_atual()["pixels"], pixels)
+        self.assertTrue(medicao.fechado)
+
+    def test_expandir_e_restaurar_todas_as_areas_de_imagem(self):
+        self.root.deiconify()
+        medicao = self.abrir_medicao()
+        medicao.abrir_segmentacao()
+        self.app.abrir_recorte()
+        recorte = self.app.paginas["Recorte"]
+        recorte.inicio, recorte.fim = (10, 10), (60, 60)
+        for titulo in ("Editor", "Recorte", "Medições", "Segmentação"):
+            self.app.selecionar_aba(titulo)
+            pagina = self.app if titulo == "Editor" else self.app.paginas[titulo]
+            self.root.update()
+            visualizacao = pagina.visualizacao
+            dimensao = pagina.canvas.winfo_height() if visualizacao.orient == "vertical" else pagina.canvas.winfo_width()
+            posicao = visualizacao.divisao.sash_coord(0)
+            visualizacao.botao_expandir.invoke()
+            self.root.update()
+            ampliada = pagina.canvas.winfo_height() if visualizacao.orient == "vertical" else pagina.canvas.winfo_width()
+            self.assertGreater(ampliada, dimensao+60, titulo)
+            self.assertFalse(visualizacao.painel_controles.winfo_ismapped())
+            visualizacao.botao_expandir.invoke()
+            self.root.update()
+            self.assertTrue(visualizacao.painel_controles.winfo_ismapped())
+            self.assertEqual(visualizacao.divisao.sash_coord(0), posicao)
+        self.assertEqual(recorte.fim, (60, 60))
+        self.assertTrue(medicao.fechado)
+
 
 if __name__ == "__main__":
     unittest.main()

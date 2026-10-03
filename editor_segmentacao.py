@@ -7,7 +7,7 @@ from tkinter import ttk, filedialog, messagebox
 import cv2
 import numpy as np
 from PIL import Image, ImageTk
-from editor_interface import AbaFerramenta, CANVAS, rolar_em
+from editor_interface import AbaFerramenta, CANVAS, rolar_em, VisualizacaoRedimensionavel
 
 
 PADRAO = dict(bilateral_d=7, sigma_cor=50, sigma_espaco=50,
@@ -173,12 +173,9 @@ class JanelaSegmentacao(AbaFerramenta):
         self.btn_importar = ttk.Button(rodape, text="Adicionar às medições", command=self.importar, state="disabled")
         self.btn_importar.pack(side="right", padx=5)
 
-        principal = ttk.Frame(self)
+        principal = self.visualizacao = VisualizacaoRedimensionavel(self, orient="horizontal")
         principal.pack(fill="both", expand=True, padx=8)
-        principal.columnconfigure(0, weight=1)
-        principal.rowconfigure(0, weight=1)
-        visual = ttk.Frame(principal)
-        visual.grid(row=0, column=0, sticky="nsew")
+        visual = principal.visual
         visual.columnconfigure(0, weight=1)
         visual.rowconfigure(0, weight=1)
         self.canvas = tk.Canvas(visual, bg=CANVAS, highlightthickness=0)
@@ -196,8 +193,7 @@ class JanelaSegmentacao(AbaFerramenta):
         self.canvas.bind("<B2-Motion>", lambda e: self.canvas.scan_dragto(e.x, e.y, gain=1))
         self.canvas.bind("<MouseWheel>", lambda e: self.canvas.yview_scroll(-int(e.delta/120), "units"))
 
-        lateral = ttk.Frame(principal, width=300)
-        lateral.grid(row=0, column=1, sticky="ns", padx=(8, 0))
+        lateral = principal.controles
         lateral.grid_propagate(False)
         lateral.columnconfigure(0, weight=1)
         lateral.rowconfigure(0, weight=1)
