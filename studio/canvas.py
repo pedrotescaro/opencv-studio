@@ -28,6 +28,7 @@ from PySide6.QtGui import (
     QWheelEvent,
 )
 from PySide6.QtWidgets import QWidget
+from .selection_canvas import SelectionInteraction
 
 
 def array_to_qimage(image: np.ndarray) -> QImage:
@@ -60,9 +61,10 @@ def array_to_qimage(image: np.ndarray) -> QImage:
     ).copy()
 
 
-class ImageCanvas(QWidget):
+class ImageCanvas(SelectionInteraction, QWidget):
     """Dark checkerboard viewport with zoom, pan, ROI tools and comparison."""
 
+    contextRequested = Signal(QPoint)
     zoomChanged = Signal(float)
     cursorChanged = Signal(int, int, object)
     selectionChanged = Signal(object)
@@ -114,6 +116,7 @@ class ImageCanvas(QWidget):
         self._pan_origin = QPointF()
         self._selection_start: QPointF | None = None
         self._selection: dict | None = None
+        self._init_selection_interaction()
         self._layer_rect = None
         self._dragging_layer = False
         self._layer_start = QPointF()
@@ -150,6 +153,15 @@ class ImageCanvas(QWidget):
     @selection.setter
     def selection(self, value: dict | None):
         self._selection = value.copy() if value else None
+        if (
+            self._selection
+            and "mask" in self._selection
+            and self._selection["mask"].flags.writeable
+        ):
+            mask = self._selection["mask"].copy()
+            mask.setflags(write=False)
+            self._selection["mask"] = mask
+        self._selection_updated()
         self.selectionChanged.emit(self.selection)
         self.update()
 
@@ -247,6 +259,11 @@ class ImageCanvas(QWidget):
     def clear_selection(self):
         self._selection = None
         self._selection_start = None
+        self._selection_transform = False
+        self._selection_restore = None
+        self._selection_gesture = None
+        self._selection_base = None
+        self._selection_updated()
         self.selectionChanged.emit(None)
         self.update()
 
@@ -394,7 +411,11 @@ class ImageCanvas(QWidget):
         painter.setPen(QPen(QColor("#101113"), 1))
         painter.drawRect(image_rect)
         self._paint_selection(painter)
-        if self._layer_rect is not None and not self._compare_original:
+        if (
+            self._layer_rect is not None
+            and not self._compare_original
+            and not self._selection_transform
+        ):
             a = self.image_to_widget(self._layer_rect.topLeft())
             b = self.image_to_widget(self._layer_rect.bottomRight())
             bounds = QRectF(a, b).normalized()
@@ -443,49 +464,6 @@ class ImageCanvas(QWidget):
             Qt.AlignmentFlag.AlignCenter,
             "PNG · JPG · BMP · WEBP · TIFF",
         )
-
-    def _paint_selection(self, painter: QPainter):
-        if not self._selection:
-            return
-        x, y, width, height = self._selection["rect"]
-        rect = QRectF(
-            self.image_to_widget(QPointF(x, y)),
-            self.image_to_widget(QPointF(x + width, y + height)),
-        )
-        path = QPainterPath()
-        if self._selection.get("shape") == "ellipse":
-            path.addEllipse(rect)
-        else:
-            path.addRect(rect)
-        if self._tool == "crop":
-            outside = QPainterPath()
-            outside.addRect(self.image_rect)
-            painter.fillPath(outside.subtracted(path), QColor(0, 0, 0, 135))
-            painter.save()
-            painter.setClipPath(path)
-            painter.setPen(QPen(QColor(255, 255, 255, 95), 1))
-            for fraction in (1 / 3, 2 / 3):
-                painter.drawLine(
-                    QPointF(rect.left() + rect.width() * fraction, rect.top()),
-                    QPointF(rect.left() + rect.width() * fraction, rect.bottom()),
-                )
-                painter.drawLine(
-                    QPointF(rect.left(), rect.top() + rect.height() * fraction),
-                    QPointF(rect.right(), rect.top() + rect.height() * fraction),
-                )
-            painter.restore()
-        else:
-            painter.fillPath(path, QColor(62, 143, 255, 22))
-        painter.setPen(QPen(QColor("#141619"), 3))
-        painter.drawPath(path)
-        painter.setPen(QPen(QColor("#e9edf3"), 1, Qt.PenStyle.DashLine))
-        painter.drawPath(path)
-        if self._tool == "crop":
-            self._paint_badge(
-                painter,
-                f"{width} × {height}  ·  Enter para recortar",
-                QPointF(max(12, rect.left()), max(12, rect.top() - 32)),
-            )
 
     def _paint_split(self, painter: QPainter):
         rect = self.image_rect.intersected(QRectF(self.rect()))
@@ -564,6 +542,8 @@ class ImageCanvas(QWidget):
         if self._processed_qimage.isNull():
             return
         position = event.position()
+        if self._selection_press(event):
+            return
         if event.button() == Qt.MouseButton.MiddleButton or (
             event.button() == Qt.MouseButton.LeftButton
             and (self._space_pressed or self._tool == "pan")
@@ -616,7 +596,11 @@ class ImageCanvas(QWidget):
             return
         if self._tool in ("rect", "ellipse", "crop"):
             self._selection_start = self.widget_to_image(position, clamp=True)
+            self._selection_base = self.selection if self._tool != "crop" else None
+            if self._tool == "crop":
+                self._selection_mode = "replace"
             self._selection = None
+            self._selection_updated()
         elif self._tool == "text":
             self.textRequested.emit(x, y)
         elif self._tool == "eyedropper":
@@ -653,10 +637,12 @@ class ImageCanvas(QWidget):
             }
         else:
             self._selection = None
-        self.update()
+        self._selection_updated()
 
     def mouseMoveEvent(self, event: QMouseEvent):
         position = event.position()
+        if self._selection_move(position, event.modifiers()):
+            return
         if self._dragging_layer:
             delta = self.widget_to_image(position) - self._layer_start
             self.layerDragMoved.emit(delta.x(), delta.y())
@@ -669,10 +655,14 @@ class ImageCanvas(QWidget):
             self.update()
         elif self._selection_start is not None:
             self._selection_to(position)
+        else:
+            self._selection_hover(position)
         x, y, color = self._pixel_at(position)
         self.cursorChanged.emit(x, y, color)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
+        if self._selection_release(event):
+            return
         if event.button() == Qt.MouseButton.LeftButton and self._dragging_layer:
             delta = self.widget_to_image(event.position()) - self._layer_start
             self._dragging_layer = False
@@ -683,6 +673,7 @@ class ImageCanvas(QWidget):
             if self._selection_start is not None:
                 self._selection_to(event.position())
                 self._selection_start = None
+                self._finish_selection_shape()
                 self.selectionChanged.emit(self.selection)
             self._panning = self._dragging_split = False
             self._update_cursor()
@@ -701,12 +692,21 @@ class ImageCanvas(QWidget):
         super().leaveEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent):
+        if self._nudge_selection(event):
+            return
         if event.key() == Qt.Key.Key_Space and not event.isAutoRepeat():
             self._space_pressed = True
             self._update_cursor()
             event.accept()
         elif event.key() == Qt.Key.Key_Backslash:
             self.compare_original = True
+            event.accept()
+        elif self._selection_transform and event.key() in (
+            Qt.Key.Key_Escape,
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+        ):
+            self.end_selection_transform(cancel=event.key() == Qt.Key.Key_Escape)
             event.accept()
         elif event.key() == Qt.Key.Key_Escape:
             self.clear_selection()

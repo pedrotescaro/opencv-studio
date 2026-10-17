@@ -249,7 +249,7 @@ class LayerActions:
                 return
             if layer_id == "base":
                 params.update(
-                    image=self.document.original,
+                    image=params.get("image", self.document.original),
                     x=0,
                     y=0,
                     width=self.document.original.shape[1],

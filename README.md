@@ -30,6 +30,9 @@ OpenCV normais/headless, pois todos fornecem o mesmo módulo `cv2`.
 main.py                       ponto de entrada Qt
 studio/
   canvas.py                   zoom, pan, seleção, comparação e pixels visíveis
+  selection_canvas.py         contorno animado, gestos e transformação com alças
+  selection.py                máscaras, combinação, refinamento e preenchimento
+  selection_edits.py          edição de pixels na camada ativa, cópia e corte
   filters.py                  ajustes, presets e pipeline de operações
   legacy_filters.py           catálogo anterior preservado sem widgets
   document.py                 original imutável e receita de edição
@@ -50,6 +53,7 @@ studio/
     layers.py                 lista de camadas, importação por arraste e propriedades
     layer_actions.py          comandos de camadas e integração com histórico/canvas
     project_actions.py        abertura e gravação assíncrona de projetos
+    selection_actions.py      menu de contexto, seleção e comandos de pixels
 preparar_faces_demo.py         treino público com partições verificáveis
 iniciar.ps1                   ambiente e inicialização no Windows
 tests/test_qt_*.py             processamento, canvas e integração Qt
@@ -108,6 +112,13 @@ mudar a imagem original nem a ordem da receita.
 | Conta-gotas / texto | I / T |
 | Confirmar recorte | Enter ou Recortar |
 | Limpar seleção | Ctrl+D |
+| Selecionar tudo / inverter seleção | Ctrl+A / Ctrl+Shift+I |
+| Adicionar / subtrair / intersectar áreas | Shift / Alt / Shift+Alt + arrastar |
+| Mover seleção / mover 10 pixels | Arrastar dentro da seleção; setas / Shift+setas |
+| Copiar / cortar seleção para nova camada | Ctrl+J / Ctrl+Shift+J |
+| Criar camada transparente | Ctrl+Shift+N |
+| Transformar camada sobreposta | Ctrl+T |
+| Apagar pixels selecionados da camada ativa | Delete |
 | Aplicar edição | Ctrl+Enter |
 | Desfazer / refazer | Ctrl+Z / Ctrl+Shift+Z |
 | Abrir / salvar / salvar como | Ctrl+O / Ctrl+S / Ctrl+Shift+S |
@@ -122,6 +133,41 @@ resolução e zoom aparecem na barra de status.
 Seleções retangulares/elípticas limitam os ajustes e filtros. O recorte tem
 proporções Livre, 1:1, 4:3, 3:2, 16:9 e 9:16. Texto suporta acentos e cor escolhida.
 Girar, espelhar, redimensionar e duplicar ficam em **Imagem/Arquivo**.
+
+## Seleção e menu de contexto
+
+Clique com o **botão direito sobre a foto** para abrir o menu de seleção e
+camadas, com ícones e estados habilitados conforme o documento. As mesmas
+opções ficam em **Editar → Seleção e camadas**. Sem seleção, ainda é possível
+criar uma camada transparente, importar uma imagem e preencher a camada ativa.
+
+Retângulos e elipses têm contorno preto/branco animado, sem tingir a imagem.
+Combine áreas com Shift (adicionar), Alt (subtrair) e Shift+Alt (interseção).
+Arraste dentro da seleção para movê-la. **Transformar seleção** mostra oito
+alças: arraste-as para redimensionar, Enter confirma e Esc restaura a seleção
+anterior. As setas movem um pixel; Shift+setas movem dez.
+
+**Modificar** permite expandir, contrair, criar borda, suavizar e aplicar difusão.
+**Refinar arestas** combina suavização, difusão e expansão/contração, com prévia
+assíncrona e cancelamento. Salvar/carregar seleção usa máscara PNG em tons de
+cinza; tons intermediários mantêm a cobertura parcial da borda.
+
+**Camada via cópia**, **Camada por corte**, **Preencher**, **Traçar contorno**
+e **Apagar pixels** trabalham na **camada ativa**. Uma camada opaca acima pode
+encobrir a alteração no fundo. A seleção é convertida às coordenadas da fonte,
+inclusive após redimensionar, recortar ou girar o documento. As ações de pixels
+entram no histórico; corte preserva transparência, e as imagens fonte editadas
+ficam no projeto .ocvproj. A original do documento permanece imutável. Novos
+projetos usam o formato versão 2; os projetos anteriores (versão 1) continuam
+abrindo nesta versão do editor.
+
+**Transformação livre da camada** abre controles numéricos de posição X/Y e
+largura/altura, com prévia e cancelar/aplicar. As alças no canvas transformam a
+seleção; para deslocar a camada, use a ferramenta Mover. O fundo conserva o
+seu tamanho; duplique-o para transformar como uma camada sobreposta. Camadas
+anteriores a um resultado científico rasterizado não podem ser editadas por
+essas ações, pois esse resultado substitui sua composição; o menu desabilita
+as ações nesse caso.
 
 ## Camadas e projetos
 

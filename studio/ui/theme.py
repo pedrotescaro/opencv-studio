@@ -344,6 +344,40 @@ def _icon_pixmap(name, size, color):
     elif name == "discard":
         p.drawLine(6, 6, 18, 18)
         p.drawLine(18, 6, 6, 18)
+    elif name == "cut":
+        p.drawEllipse(QRectF(3, 14, 5, 5))
+        p.drawEllipse(QRectF(14, 14, 5, 5))
+        p.drawLine(6, 15, 17, 4)
+        p.drawLine(16, 15, 5, 4)
+    elif name == "new_layer":
+        p.drawRect(QRectF(4, 4, 14, 16))
+        p.drawLine(14, 9, 22, 9)
+        p.drawLine(18, 5, 18, 13)
+    elif name == "invert_selection":
+        p.drawRect(QRectF(4, 4, 16, 16))
+        p.fillRect(QRectF(5, 5, 7, 14), QColor(color))
+        p.setPen(QPen(QColor(color), 1, Qt.PenStyle.DashLine))
+        p.drawRect(QRectF(8, 8, 8, 8))
+    elif name in ("selection_modify", "selection_transform"):
+        p.setPen(QPen(QColor(color), 1, Qt.PenStyle.DashLine))
+        p.drawRect(QRectF(5, 5, 14, 14))
+        p.setPen(QPen(QColor(color), 1.5))
+        for x, y in ((4, 4), (17, 4), (4, 17), (17, 17)):
+            p.drawRect(QRectF(x, y, 3, 3))
+    elif name == "fill":
+        path = QPainterPath()
+        path.moveTo(12, 3)
+        path.lineTo(20, 11)
+        path.lineTo(11, 20)
+        path.lineTo(3, 12)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawLine(5, 12, 18, 12)
+        p.drawLine(9, 2, 15, 8)
+    elif name == "stroke":
+        p.drawEllipse(QRectF(4, 4, 16, 16))
+        p.setPen(QPen(QColor(color), 1, Qt.PenStyle.DashLine))
+        p.drawEllipse(QRectF(7, 7, 10, 10))
     elif name == "deselect":
         p.setPen(QPen(QColor(color), 1.6, Qt.PenStyle.DashLine))
         p.drawRect(QRectF(4, 5, 16, 14))

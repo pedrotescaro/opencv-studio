@@ -35,7 +35,10 @@ def layer_rect(params):
 
 
 def base_layer(image, params):
-    out = bgra(image)
+    source = params.get("image", image)
+    if source.shape[:2] != image.shape[:2]:
+        raise ValueError("A imagem do fundo deve manter as dimensões do documento.")
+    out = bgra(source)
     opacity = float(params.get("opacity", 1)) if params.get("visible", True) else 0.0
     if not np.isfinite(opacity) or not 0 <= opacity <= 1:
         raise ValueError("A opacidade deve estar entre zero e um.")

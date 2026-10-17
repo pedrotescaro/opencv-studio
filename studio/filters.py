@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 
 from .legacy_filters import LEGACY_CATALOG, PARAMETROS, processar_filtro
+from .selection import selection_mask
 
 
 @dataclass
@@ -234,30 +235,6 @@ def histogram(image, space="RGB"):
         )
         for name, channel in zip(names, channels)
     }
-
-
-def selection_mask(shape, selection):
-    h, w = shape[:2]
-    mask = np.zeros((h, w), np.uint8)
-    x, y, rw, rh = map(float, selection["rect"])
-    sw, sh = selection.get("source_size", (w, h))
-    x0, y0 = round(x * w / sw), round(y * h / sh)
-    x1, y1 = round((x + rw) * w / sw), round((y + rh) * h / sh)
-    x0, x1 = sorted((max(0, min(w, x0)), max(0, min(w, x1))))
-    y0, y1 = sorted((max(0, min(h, y0)), max(0, min(h, y1))))
-    if x1 <= x0 or y1 <= y0:
-        return mask
-    if selection.get("shape", "rect") == "ellipse":
-        # Evaluate pixel centers to keep the ellipse strictly inside its ROI.
-        yy, xx = np.ogrid[y0:y1, x0:x1]
-        mask[y0:y1, x0:x1] = (
-            ((xx + 0.5 - (x0 + x1) / 2) / ((x1 - x0) / 2)) ** 2
-            + ((yy + 0.5 - (y0 + y1) / 2) / ((y1 - y0) / 2)) ** 2
-            <= 1
-        ).astype(np.uint8) * 255
-    else:
-        mask[y0:y1, x0:x1] = 255
-    return mask
 
 
 def grow_region(image, seed, tolerance=15, connectivity=4):
@@ -652,6 +629,13 @@ def render_pipeline(original, operations, max_size=None):
                 p["seed"] = (
                     min(image.shape[1] - 1, round(x * scale)),
                     min(image.shape[0] - 1, round(y * scale)),
+                )
+            elif op.kind == "base_layer" and "image" in p:
+                raster = p["image"]
+                p["image"] = cv2.resize(
+                    raster,
+                    (image.shape[1], image.shape[0]),
+                    interpolation=cv2.INTER_AREA,
                 )
             elif op.kind == "raster":
                 raster = validate_image(p["image"])

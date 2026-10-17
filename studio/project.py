@@ -44,7 +44,7 @@ def write_project(path, original, operations):
 
     payload = {
         "format": "opencv-studio",
-        "version": 1,
+        "version": 2,
         "original": encode(original),
         "operations": [
             encode(
@@ -121,7 +121,7 @@ def read_project(path):
             if (
                 not isinstance(payload, dict)
                 or payload.get("format") != "opencv-studio"
-                or payload.get("version") != 1
+                or payload.get("version") not in (1, 2)
             ):
                 raise ValueError("Formato ou versão de projeto incompatível.")
             arrays = {}
@@ -226,6 +226,12 @@ def read_project(path):
                     if op.kind == "layer":
                         validate_image(op.params["image"])
                         layer_rect(op.params)
+                    elif "image" in op.params:
+                        validate_image(op.params["image"])
+                        if op.params["image"].shape[:2] != original.shape[:2]:
+                            raise ValueError(
+                                "A imagem do fundo tem dimensões incompatíveis."
+                            )
                 operations.append(op)
             return original, operations
     except (

@@ -26,6 +26,10 @@ o primeiro salvamento exigir processamento mais demorado.
 | `studio/ui/window.py` | `MainWindow`: menus, docks, documento e coordenação |
 | `studio/ui/theme.py` | `STYLE`, `icon`: métricas e ícones desenhados em Qt |
 | `studio/ui/widgets.py` | `AdjustmentControl`, `HistogramWidget`, `CurveWidget` |
+| `studio/selection.py` | Máscaras imutáveis, combinação, morfologia, difusão e preenchimento alfa |
+| `studio/selection_canvas.py` | Gestos, contorno animado com cache e transformação de seleção com oito alças |
+| `studio/selection_edits.py` | Seleção em coordenadas da fonte; cópia/corte, preenchimento, contorno e apagar |
+| `studio/ui/selection_actions.py` | Menu de contexto, atalhos, máscara PNG e diálogos de prévia |
 | `studio/canvas.py` | `ImageCanvas`: coordenadas imagem/viewport, pintura e ferramentas |
 | `studio/filters.py` | `Operation`, `ADJUSTMENTS`, `FILTERS`, `PRESETS`, `apply_operation`, `render_pipeline`, `output_size` |
 | `studio/legacy_filters.py` | Catálogo e algoritmos anteriores, migrados sem UI |
@@ -61,7 +65,19 @@ não um bitmap proporcional à resolução da imagem.
 
 O zoom usa a coordenada sob o cursor para recompor o deslocamento. Pan aceita
 botão do meio e Espaço+arraste. Seleções informam forma, retângulo e dimensões
-de origem. A máscara é reconstruída pelo pipeline, inclusive na prévia reduzida.
+de origem. Áreas combinadas, invertidas ou suavizadas usam uma máscara de 8 bits
+imutável, com retângulo envolvente. O pipeline redimensiona essa cobertura também
+na prévia reduzida. O cache dos contornos é invalidado quando a seleção muda;
+o timer de 90 ms altera apenas a fase do tracejado e para com o canvas oculto.
+Shift/Alt combinam áreas; mover/transformar conserva a forma e permite cancelar.
+
+Ações de pixels usam a inversa da geometria posterior à camada para projetar a
+seleção do canvas em sua fonte. `base_layer.image` permite editar o fundo sem
+alterar `Document.original`; a prévia reduz esse operando. Cópia/corte gera uma
+fonte BGRA imutável acima da camada ativa, antes dos ajustes globais, evitando
+aplicá-los duas vezes. Jobs conferem original, geração, estado de histórico e
+identidade da seleção antes de aceitar o retorno. A refinagem também rejeita
+retornos anteriores ao último pedido ou posteriores ao cancelamento.
 
 ## Dados e concorrência
 
@@ -78,7 +94,10 @@ deslocamento do canvas para a camada; a liberação confirma um estado de histó
 O projeto .ocvproj guarda a original e a receita atual com todos os operandos
 de imagem. A leitura limita tamanho, estrutura e tipos antes de carregar as
 matrizes; não extrai caminhos nem executa objetos. O salvamento usa temporário
-e substituição atômica. Exportação produz uma composição raster independente.
+e substituição atômica. A versão 2 preserva as novas máscaras e os pixels do
+fundo; a leitura continua aceitando projetos da versão 1. A versão explícita
+impede que editores antigos abram a nova receita ignorando esses dados.
+Exportação produz uma composição raster independente.
 
 Faces usam os diretórios pessoais/demo existentes, hashes de amostras e modelo
 persistente. O reconhecedor protege os acessos ao modelo; o processamento do

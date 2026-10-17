@@ -12,7 +12,8 @@ OpenCV contrib 4.14.0, NumPy 2.5.4 e Pillow 12.3.0.
 Resultado inicial: **183 testes passaram**, sendo **76 da implementação Qt** e
 107 de regressão dos algoritmos e interfaces anteriores. Os testes incluem
 subcasos; o catálogo de 104 filtros é percorrido integralmente. A extensão de
-camadas descrita abaixo eleva o total para **205 testes: 98 Qt e 107 legados**.
+camadas elevou o total para 205. A extensão de seleção e menu de contexto
+eleva o total para **227 testes: 120 Qt e 107 legados**.
 
 | Suíte Qt | Quantidade | Comportamentos verificados |
 | --- | ---: | --- |
@@ -21,6 +22,7 @@ camadas descrita abaixo eleva o total para **205 testes: 98 Qt e 107 legados**.
 | `test_qt_advanced.py` | 22 | Cadastro e treino LBPH; chamadas; carregamento assíncrono; efeitos/exportação real de vídeo; cancelamento; cor/NPZ; GrabCut; crescimento; medições/CSV; morfologia/JSON; fechamento durante processamento |
 | `test_qt_services.py` | 9 | Equivalência dos serviços extraídos; compatibilidade de modelos e chamadas; vídeo real; execução completa da janela com imports Tk/legados proibidos |
 | `test_qt_window.py` | 13 | UI e receita integradas; seleção ao reeditar; desfazer/refazer; exportação integral; falhas de arquivo; níveis inválidos; widgets numéricos; workers responsivos e descarte de resultados antigos |
+| `test_qt_selection.py` | 22 | Máscaras combinadas e suaves, gestos, alças, nudge, menu e atalhos, coordenadas da camada, cópia/corte, alfa, preenchimento/contorno, prévias, projeto, histórico e retornos obsoletos |
 | `test_qt_layers.py` | 22 | Composição alfa, modos de mesclagem, geometria, preview, projetos portáteis, arquivo inválido, importação por arraste, pilha, propriedades, duplicação, canvas e exportação |
 
 Três regressões receberam reprodução específica: exportações com a primeira
@@ -87,6 +89,26 @@ A inspeção Qt Windows com três camadas confirmou largura de painel de 330 par
 as três camadas e o layout permaneceu em 980×660, sem sobreposição dos docks.
 Artefatos locais: `qt-camadas-final.png`, `qt-camadas-980.png`,
 `qt-filtros-redimensionaveis.png` e `qt-camadas-final.json`.
+
+## Seleção e menu de contexto
+
+A suíte de seleção acrescenta 22 testes. Os valores de pixels confirmam que
+copiar usa a fonte da camada ativa, que os ajustes globais não são duplicados,
+que o corte gera transparência real no fundo e que seleção, preenchimento e
+apagamento são mapeados após resize, crop e rotação. O projeto reabre máscaras
+suaves, edições do fundo e as camadas; a prévia respeita seu limite de tamanho.
+Também foram exercitados soma/subtração/interseção com modificadores, movimento,
+alças, Enter/Esc, setas, Ctrl+J, estados e ícones do menu, máscara PNG,
+refinamento assíncrono com aplicar/cancelar, transformação numérica da camada,
+desfazer/refazer e descarte de uma ação quando o documento muda.
+
+No backend Qt Windows, uma seleção retangular recebeu uma subtração elíptica,
+o menu real foi aberto sobre a foto e a ação Camada via cópia foi acionada com
+mouse. A nova camada manteve o buraco transparente. O arraste das alças e Esc
+restauraram a seleção, sem modificar a original. Menu e layout foram conferidos
+em 1440×900 e 980×660. Evidências locais: `qt-menu-selecao-1440.png`,
+`qt-menu-selecao-980.png`, `qt-selecao-combinada.png`,
+`qt-selecao-transformar.png`, `qt-selecao-980.png` e `qt-selecao.json`.
 
 ## Treino facial realmente executado
 

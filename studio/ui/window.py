@@ -55,13 +55,14 @@ from studio.ui.theme import FILTER_CATEGORY_ICONS, icon
 from studio.ui.layers import LayerPanel
 from studio.ui.layer_actions import LayerActions
 from studio.ui.project_actions import ProjectActions
+from studio.ui.selection_actions import SelectionActions
 
 IMAGE_TYPES = (
     "Imagens (*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff);;Todos os arquivos (*)"
 )
 
 
-class MainWindow(LayerActions, ProjectActions, QMainWindow):
+class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("OpenCV Studio")
@@ -121,6 +122,7 @@ class MainWindow(LayerActions, ProjectActions, QMainWindow):
         self.canvas.zoomChanged.connect(self._zoom_changed)
         self.canvas.cursorChanged.connect(self._cursor)
         self.canvas.fileDropped.connect(self.open_path)
+        self.canvas.contextRequested.connect(self.show_canvas_menu)
         self.canvas.cropRequested.connect(self.apply_crop)
         self.canvas.textRequested.connect(self.add_text)
         self.canvas.layerDragStarted.connect(self.start_layer_drag)
@@ -234,6 +236,50 @@ class MainWindow(LayerActions, ProjectActions, QMainWindow):
                 icon_name="deselect",
             )
         )
+        selection_menu = edit.addMenu(icon("rect"), "Seleção e camadas")
+        selection_menu.aboutToShow.connect(
+            lambda: self._populate_selection_menu(selection_menu)
+        )
+        for title, slot, shortcut, symbol in (
+            ("Selecionar tudo", self.select_all, "Ctrl+A", "rect"),
+            (
+                "Inverter seleção",
+                lambda: self.modify_selection("invert"),
+                "Ctrl+Shift+I",
+                "invert_selection",
+            ),
+            (
+                "Camada via cópia",
+                lambda: self.edit_selection_pixels("copy"),
+                "Ctrl+J",
+                "duplicate",
+            ),
+            (
+                "Camada por corte",
+                lambda: self.edit_selection_pixels("cut"),
+                "Ctrl+Shift+J",
+                "cut",
+            ),
+            (
+                "Nova camada transparente",
+                self.new_empty_layer,
+                "Ctrl+Shift+N",
+                "new_layer",
+            ),
+            (
+                "Transformação livre da camada…",
+                self.transform_layer_dialog,
+                "Ctrl+T",
+                "resize",
+            ),
+            (
+                "Apagar pixels selecionados",
+                lambda: self.edit_selection_pixels("delete"),
+                "Delete",
+                "discard",
+            ),
+        ):
+            self.addAction(self._action(title, slot, shortcut, icon_name=symbol))
         image = bar.addMenu("Imagem")
         for text, slot, icon_name in (
             ("Redimensionar…", self.resize_dialog, "resize"),
@@ -473,9 +519,17 @@ class MainWindow(LayerActions, ProjectActions, QMainWindow):
         self.tool_label.setText(
             " " + self.tool_actions[name].text().split(" (")[0] + "  "
         )
+        self.tool_label.setMinimumWidth(
+            self.tool_label.fontMetrics().horizontalAdvance(self.tool_label.text()) + 8
+        )
         for action in self.crop_actions:
             action.setVisible(name == "crop")
-        self.status(self.options.toolTip())
+        if name in ("rect", "ellipse"):
+            self.status(
+                "Arraste para selecionar. Shift: adicionar · Alt: subtrair · Shift+Alt: interseção. Botão direito: ações da seleção."
+            )
+        else:
+            self.status(self.options.toolTip())
 
     def _dock(self, title, widget):
         dock = QDockWidget(title, self)
@@ -953,6 +1007,9 @@ class MainWindow(LayerActions, ProjectActions, QMainWindow):
         self.request_render(False)
 
     def discard_preview(self):
+        if self.canvas._selection_transform:
+            self.canvas.end_selection_transform(cancel=True)
+            return
         self.canvas.clear_selection()
         self.reset_draft()
 
