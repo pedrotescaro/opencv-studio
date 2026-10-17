@@ -44,7 +44,7 @@ class AbasTests(unittest.TestCase):
         self.app.abrir_recorte()
         self.assertIs(self.app.paginas["Recorte"], recorte)
         self.assertEqual(recorte.fim, (60, 60))
-        self.assertEqual(len(self.app.abas.tabs()), 6)
+        self.assertEqual(len(self.app.abas.tabs()), len(self.app.nomes_abas))
         self.assertIs(medicao.winfo_toplevel(), self.root)
         self.assertIs(recorte.master, self.app.abas)
         self.assertIsNone(self.root.grab_current())
@@ -56,7 +56,7 @@ class AbasTests(unittest.TestCase):
         self.assertEqual(self.app.abas.tab(self.app.abas.select(), "text"), "Recorte")
         self.app.editar_kernel()
         self.assertEqual(self.app.abas.tab(self.app.abas.select(), "text"), "Morfologia")
-        self.assertEqual(len(self.app.abas.tabs()), 6)
+        self.assertEqual(len(self.app.abas.tabs()), len(self.app.nomes_abas))
 
     def test_enter_e_desfazer_seguem_aba_ativa(self):
         medicao = self.abrir_medicao()
@@ -85,16 +85,16 @@ class AbasTests(unittest.TestCase):
         self.assertTrue(seg.encerrada)
         self.assertIsNone(seg.poll_id)
         self.assertIsNone(seg.resize_id)
-        self.assertEqual(len(self.app.abas.tabs()), 6)
+        self.assertEqual(len(self.app.abas.tabs()), len(self.app.nomes_abas))
         self.assertEqual(self.app.abas.tab(self.app.abas.select(), "text"), "Editor")
 
     def test_substituir_ultima_aba_nao_duplica_paginas(self):
         primeira = AbaFerramenta(self.root, "Composição", origem=self.app.atual)
         segunda = AbaFerramenta(self.root, "Composição", origem=self.app.atual)
         self.assertFalse(primeira.winfo_exists())
-        self.assertEqual(len(self.app.abas.tabs()), 6)
+        self.assertEqual(len(self.app.abas.tabs()), len(self.app.nomes_abas))
         segunda.destroy()
-        self.assertEqual(len(self.app.abas.tabs()), 6)
+        self.assertEqual(len(self.app.abas.tabs()), len(self.app.nomes_abas))
 
     def test_filtros_ocultam_parametros_inutilizados(self):
         self.app.filtro_var.set("Escala de cinza")

@@ -2,11 +2,11 @@
 import tkinter as tk
 from tkinter import ttk
 
-FUNDO = "#f4f6fa"
+FUNDO = "#f2f5f8"
 SUPERFICIE = "#ffffff"
-CANVAS = "#e8edf4"
+CANVAS = "#dfe6ed"
 TEXTO = "#203047"
-SUAVE = "#68778d"
+SUAVE = "#52647a"
 
 
 def configurar_estilo(root):
@@ -15,21 +15,27 @@ def configurar_estilo(root):
     style.theme_use("clam")
     style.configure("TFrame", background=FUNDO)
     style.configure("Card.TFrame", background=SUPERFICIE)
+    style.configure("Brand.TLabel", background=SUPERFICIE, foreground="#172b45", font=("Segoe UI", 16, "bold"))
+    style.configure("HeaderMuted.TLabel", background=SUPERFICIE, foreground=SUAVE, font=("Segoe UI", 9))
+    style.configure("Panel.TFrame", background=SUPERFICIE)
+    style.configure("Panel.TLabel", background=SUPERFICIE, foreground=TEXTO)
+    style.configure("Status.TLabel", foreground="#1e5b46", background="#e5f2eb", padding=(10, 5), font=("Segoe UI", 9))
     style.configure("TLabel", background=FUNDO, foreground=TEXTO, font=("Segoe UI", 10))
-    style.configure("Title.TLabel", font=("Segoe UI", 19, "bold"))
+    style.configure("Title.TLabel", font=("Segoe UI", 17, "bold"))
     style.configure("Section.TLabel", font=("Segoe UI", 11, "bold"))
     style.configure("Muted.TLabel", foreground=SUAVE)
-    style.configure("TButton", padding=(12, 7), font=("Segoe UI", 10), background=SUPERFICIE,
+    style.configure("TButton", padding=(10, 6), font=("Segoe UI", 10), background=SUPERFICIE,
                     foreground=TEXTO, borderwidth=1, relief="flat")
     style.map("TButton", background=[("active", "#e7edf7")], foreground=[("disabled", "#9aa5b5")])
     style.configure("Accent.TButton", background="#2563eb", foreground="white", borderwidth=0)
     style.map("Accent.TButton", background=[("disabled", "#c9d4e8"), ("active", "#1d4ed8")],
               foreground=[("disabled", "#ffffff")])
-    style.configure("TNotebook", background=FUNDO, borderwidth=0, bordercolor=FUNDO, tabmargins=(0, 0, 0, 8))
-    style.configure("TNotebook.Tab", padding=(18, 9), background=FUNDO, foreground=SUAVE,
+    style.configure("Quiet.TButton", padding=(7, 5), background=FUNDO, foreground=SUAVE, borderwidth=0)
+    style.configure("TNotebook", background=FUNDO, borderwidth=0, bordercolor=FUNDO, tabmargins=(0, 8, 0, 8))
+    style.configure("TNotebook.Tab", padding=(10, 9), background=FUNDO, foreground=SUAVE,
                     font=("Segoe UI", 10), bordercolor=FUNDO, lightcolor=FUNDO, darkcolor=FUNDO)
     style.map("TNotebook.Tab", background=[("selected", SUPERFICIE)],
-              foreground=[("selected", "#2563eb")], padding=[("selected", (18, 9))])
+              foreground=[("selected", "#2563eb")], padding=[("selected", (10, 9))])
     style.configure("TEntry", padding=6, fieldbackground=SUPERFICIE, bordercolor="#d9e0eb")
     style.configure("TCombobox", padding=5, fieldbackground=SUPERFICIE, background=SUPERFICIE)
     style.map("TCombobox", fieldbackground=[("readonly", SUPERFICIE)])
@@ -66,7 +72,8 @@ class AbaFerramenta(ttk.Frame):
 
     def lift(self, *_args):
         if self.winfo_exists():
-            self.notebook.add(self, text=self.titulo)
+            titulo = self.editor.titulo_aba(self.titulo) if self.editor is not None else self.titulo
+            self.notebook.add(self, text=titulo)
             self.notebook.select(self)
 
     def withdraw(self):
