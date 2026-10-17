@@ -71,10 +71,22 @@ class ImageCanvas(QWidget):
     pointClicked = Signal(int, int)
     colorPicked = Signal(object)
     fileDropped = Signal(str)
+    layerDragStarted = Signal()
+    layerDragMoved = Signal(float, float)
+    layerDragFinished = Signal(float, float)
 
     MIN_ZOOM = 0.05
     MAX_ZOOM = 32.0
-    FILE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".webp", ".tif", ".tiff"}
+    FILE_SUFFIXES = {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".bmp",
+        ".webp",
+        ".tif",
+        ".tiff",
+        ".ocvproj",
+    }
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -102,6 +114,9 @@ class ImageCanvas(QWidget):
         self._pan_origin = QPointF()
         self._selection_start: QPointF | None = None
         self._selection: dict | None = None
+        self._layer_rect = None
+        self._dragging_layer = False
+        self._layer_start = QPointF()
         self.crop_ratio: float | None = None
         self._checker = self._make_checker()
         self._update_cursor()
@@ -233,6 +248,12 @@ class ImageCanvas(QWidget):
         self._selection = None
         self._selection_start = None
         self.selectionChanged.emit(None)
+        self.update()
+
+    def set_layer_rect(self, rect):
+        self._layer_rect = QRectF(*rect) if rect is not None else None
+        if rect is None:
+            self._dragging_layer = False
         self.update()
 
     def fit_to_view(self):
@@ -373,6 +394,13 @@ class ImageCanvas(QWidget):
         painter.setPen(QPen(QColor("#101113"), 1))
         painter.drawRect(image_rect)
         self._paint_selection(painter)
+        if self._layer_rect is not None and not self._compare_original:
+            a = self.image_to_widget(self._layer_rect.topLeft())
+            b = self.image_to_widget(self._layer_rect.bottomRight())
+            bounds = QRectF(a, b).normalized()
+            painter.setPen(QPen(QColor("#5798eb"), 1, Qt.PenStyle.DashLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRect(bounds)
         if self._split and not self._compare_original:
             self._paint_split(painter)
         if self._compare_original:
@@ -521,7 +549,7 @@ class ImageCanvas(QWidget):
         event.accept()
 
     def _update_cursor(self):
-        if self._panning:
+        if self._panning or self._dragging_layer:
             cursor = Qt.CursorShape.ClosedHandCursor
         elif self._space_pressed or self._tool == "pan":
             cursor = Qt.CursorShape.OpenHandCursor
@@ -553,6 +581,18 @@ class ImageCanvas(QWidget):
             ):
                 self._dragging_split = True
                 self.setCursor(Qt.CursorShape.SplitHCursor)
+                return
+            if (
+                event.button() == Qt.MouseButton.LeftButton
+                and not self._space_pressed
+                and self._tool == "pan"
+                and self._layer_rect is not None
+                and self._layer_rect.contains(self.widget_to_image(position))
+            ):
+                self._dragging_layer = True
+                self._layer_start = self.widget_to_image(position)
+                self.layerDragStarted.emit()
+                self._update_cursor()
                 return
             self._panning = True
             self._pan_start = position
@@ -617,7 +657,10 @@ class ImageCanvas(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent):
         position = event.position()
-        if self._dragging_split:
+        if self._dragging_layer:
+            delta = self.widget_to_image(position) - self._layer_start
+            self.layerDragMoved.emit(delta.x(), delta.y())
+        elif self._dragging_split:
             self.split_position = (
                 position.x() - self.image_rect.left()
             ) / self.image_rect.width()
@@ -630,6 +673,12 @@ class ImageCanvas(QWidget):
         self.cursorChanged.emit(x, y, color)
 
     def mouseReleaseEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton and self._dragging_layer:
+            delta = self.widget_to_image(event.position()) - self._layer_start
+            self._dragging_layer = False
+            self.layerDragFinished.emit(delta.x(), delta.y())
+            self._update_cursor()
+            return
         if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
             if self._selection_start is not None:
                 self._selection_to(event.position())

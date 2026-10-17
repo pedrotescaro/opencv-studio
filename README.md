@@ -35,6 +35,8 @@ studio/
   document.py                 original imutável e receita de edição
   history.py                  estados de operações, undo/redo sem limite fixo
   io.py                       leitura Unicode, alfa e exportação com qualidade
+  layers.py                   composição alfa, mesclagem e coordenadas de camadas
+  project.py                  projetos .ocvproj portáteis, com receita e imagens
   workers.py                  render assíncrono, debounce e coalescência de pedidos
   faces.py                    interface Qt de cadastro/modelo/chamada
   video.py                    interface Qt de câmera/arquivo/exportação
@@ -45,6 +47,9 @@ studio/
     window.py                 menus, docks e coordenação do documento
     widgets.py                sliders numéricos, histogramas e curvas
     theme.py                  paleta, métricas Qt e ícones vetoriais
+    layers.py                 lista de camadas, importação por arraste e propriedades
+    layer_actions.py          comandos de camadas e integração com histórico/canvas
+    project_actions.py        abertura e gravação assíncrona de projetos
 preparar_faces_demo.py         treino público com partições verificáveis
 iniciar.ps1                   ambiente e inicialização no Windows
 tests/test_qt_*.py             processamento, canvas e integração Qt
@@ -65,9 +70,14 @@ continuam disponíveis para regressão dos algoritmos e migração dos dados.
 
 - Menu **Arquivo, Editar, Imagem, Filtros, Visualizar**.
 - Ferramentas vetoriais à esquerda; canvas no centro; docks à direita.
-- **Ajustes**, **Filtros** e **Histograma** (com curvas e níveis) têm abas; **Histórico**
+- **Ajustes**, **Filtros**, **Histograma** e **Camadas** têm abas; **Histórico**
   fica abaixo. Arraste, destaque, redimensione ou feche os docks. **Visualizar →
   Painéis** os recupera. O mesmo espaço atende janelas pequenas por rolagem local.
+- No painel **Filtros**, arraste a barra horizontal entre a lista e os parâmetros
+  para aumentar ou diminuir a altura da lista. Os parâmetros têm rolagem própria.
+  Os botões do cabeçalho permitem destacar/encaixar e fechar cada painel.
+- Para mudar a largura, arraste a pequena alça vertical à esquerda do título
+  do painel para a esquerda ou direita. Os separadores entre docks também são visíveis.
 - Use o seletor superior para alternar **Editor**, **Vídeo e câmera**, **Rostos e
   chamada**. O laboratório abre pelo ícone inferior da barra de ferramentas ou
   por **Imagem → Laboratório e medições**.
@@ -101,6 +111,8 @@ mudar a imagem original nem a ordem da receita.
 | Aplicar edição | Ctrl+Enter |
 | Desfazer / refazer | Ctrl+Z / Ctrl+Shift+Z |
 | Abrir / salvar / salvar como | Ctrl+O / Ctrl+S / Ctrl+Shift+S |
+| Adicionar imagens como camadas | Ctrl+Alt+O |
+| Abrir projeto com camadas | Ctrl+Shift+O |
 
 Em alta ampliação os pixels são nítidos; na redução há suavização. O paint do
 canvas envia apenas a região visível ao Qt, sem criar um bitmap gigante para
@@ -110,6 +122,38 @@ resolução e zoom aparecem na barra de status.
 Seleções retangulares/elípticas limitam os ajustes e filtros. O recorte tem
 proporções Livre, 1:1, 4:3, 3:2, 16:9 e 9:16. Texto suporta acentos e cor escolhida.
 Girar, espelhar, redimensionar e duplicar ficam em **Imagem/Arquivo**.
+
+## Camadas e projetos
+
+Abra a aba **Camadas**, use **Adicionar imagens como camadas…** ou arraste
+arquivos para o painel. O botão com imagens empilhadas na barra superior faz
+a mesma importação. Sem documento aberto, a primeira imagem vira o fundo.
+As demais são centralizadas e ajustadas para caber na área da imagem original.
+
+A primeira linha é a camada da frente. Arraste as linhas ou use as setas para
+mudar sua ordem. As caixas de seleção mostram/ocultam; duplo clique renomeia;
+os botões duplicam e removem. O fundo permanece na base, com visibilidade e
+opacidade ajustáveis. Há mesclagem **Normal, Multiplicar, Tela e Sobrepor**.
+
+Selecione a camada, escolha **Mover (V)** e arraste sua imagem no canvas.
+Espaço+arraste e botão do meio continuam movendo a visualização. Os campos
+X/Y e largura/altura ficam abaixo da lista, com opção de manter a proporção;
+role o painel para acessar as propriedades em janelas menores. Desfazer/refazer
+incluem importação, ordem, posição, tamanho, opacidade e visibilidade.
+
+Os ajustes e filtros gerais são reaplicados à composição completa. As imagens
+das camadas permanecem separadas e imutáveis na receita. Duplicar o documento
+preserva as camadas em uma janela independente.
+
+Com camadas, **Salvar (Ctrl+S)** grava um projeto **.ocvproj**, com as imagens
+e os ajustes dentro do arquivo. **Arquivo → Abrir projeto com camadas…**
+recupera a edição sem depender dos arquivos de origem. O formato usa JSON e
+matrizes NumPy sem pickle, com gravação por substituição atômica e limite de
+1 GB sem compressão. O histórico de desfazer permanece restrito à sessão.
+
+Use **Exportar** para gerar PNG/JPG/WEBP/TIFF com as camadas visíveis reunidas
+em uma imagem. A exportação não substitui o salvamento do projeto. PNG/WEBP/TIFF
+preservam transparência; o formato de projeto é próprio do Studio, sem suporte PSD.
 
 ## Ajustes e filtros
 

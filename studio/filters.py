@@ -535,6 +535,12 @@ def apply_operation(image, operation):
         raise ValueError("A intensidade deve estar entre zero e um.")
     if intensity == 0:
         return image.copy()
+    if operation.kind in ("layer", "base_layer"):
+        from .layers import composite_layer, base_layer
+
+        return (composite_layer if operation.kind == "layer" else base_layer)(
+            image, operation.params
+        )
     geometry = operation.kind in ("crop", "resize", "rotate", "flip", "raster") or (
         operation.kind == "filter"
         and operation.params.get("name") in _GEOMETRIC_FILTERS
@@ -631,6 +637,12 @@ def render_pipeline(original, operations, max_size=None):
                     max(1, round(p["width"] * scale)),
                     max(1, round(p["height"] * scale)),
                 )
+            elif op.kind == "layer":
+                raster = p["image"]
+                p["width"] = max(1, round(p.get("width", raster.shape[1]) * scale))
+                p["height"] = max(1, round(p.get("height", raster.shape[0]) * scale))
+                p["x"] = round(p.get("x", 0) * scale)
+                p["y"] = round(p.get("y", 0) * scale)
             elif op.kind == "text":
                 for key in ("x", "y", "size"):
                     if key in p:

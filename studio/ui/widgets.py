@@ -1,7 +1,7 @@
 """Controles com valor editável, reset local e histogramas/curvas interativos."""
 
 import numpy as np
-from PySide6.QtCore import Qt, Signal, QPointF
+from PySide6.QtCore import Qt, Signal, QPointF, QSize, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QWidget,
@@ -12,8 +12,162 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QAbstractSpinBox,
+    QDockWidget,
+    QSplitter,
+    QSplitterHandle,
 )
 from studio.ui.theme import icon
+
+
+class DockWidthGrip(QWidget):
+    """Explicit horizontal resize grip, including for tabbed dock panels."""
+
+    def __init__(self, dock):
+        super().__init__(dock)
+        self.dock = dock
+        self.setObjectName("dockWidthGrip")
+        self.setFixedSize(12, 28)
+        self.setCursor(Qt.CursorShape.SizeHorCursor)
+        self.setToolTip(
+            "Arraste para a esquerda ou direita para ajustar a largura do painel"
+        )
+        self.setAccessibleName("Redimensionar largura do painel")
+        self._origin = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._origin = (
+                event.globalPosition().x(),
+                self.dock.width(),
+                self.dock.x(),
+            )
+            event.accept()
+        else:
+            event.ignore()
+
+    def mouseMoveEvent(self, event):
+        if self._origin is None:
+            return
+        x, width, left = self._origin
+        delta = round(event.globalPosition().x() - x)
+        parent = self.dock.parentWidget()
+        is_left = (
+            not self.dock.isFloating()
+            and parent.dockWidgetArea(self.dock) == Qt.DockWidgetArea.LeftDockWidgetArea
+        )
+        target = max(
+            self.dock.minimumWidth(), width + delta if is_left else width - delta
+        )
+        if self.dock.isFloating():
+            self.dock.resize(target, self.dock.height())
+            self.dock.move(left + width - target, self.dock.y())
+        else:
+            parent.resizeDocks([self.dock], [target], Qt.Orientation.Horizontal)
+        event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._origin = None
+        event.accept()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#5798eb" if self.underMouse() else "#858590"))
+        painter.drawRoundedRect(QRectF(5, 7, 2, 14), 1, 1)
+
+
+class DockTitleBar(QWidget):
+    """Readable dock controls while retaining Qt's title-bar drag behavior."""
+
+    def __init__(self, dock):
+        super().__init__(dock)
+        self.dock = dock
+        self.setObjectName("dockTitleBar")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setFixedHeight(32)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(3, 2, 4, 2)
+        layout.setSpacing(2)
+        self.width_grip = DockWidthGrip(dock)
+        layout.addWidget(self.width_grip)
+        label = QLabel(dock.windowTitle())
+        dock.windowTitleChanged.connect(label.setText)
+        layout.addWidget(label, 1)
+        self.float_button = QToolButton(self)
+        self.close_button = QToolButton(self)
+        for button in (self.float_button, self.close_button):
+            button.setFixedSize(28, 28)
+            button.setIconSize(QSize(18, 18))
+            layout.addWidget(button)
+        self.close_button.setIcon(icon("discard"))
+        self.close_button.setToolTip("Fechar painel")
+        self.close_button.setAccessibleName("Fechar painel")
+        self.close_button.clicked.connect(dock.close)
+        self.float_button.clicked.connect(self._toggle_floating)
+        dock.topLevelChanged.connect(self._floating_changed)
+        dock.featuresChanged.connect(self._features_changed)
+        self._floating_changed(dock.isFloating())
+        self._features_changed(dock.features())
+
+    def _toggle_floating(self):
+        self.dock.setFloating(not self.dock.isFloating())
+        self.dock.raise_()
+
+    def _floating_changed(self, floating):
+        self.float_button.setIcon(icon("redock" if floating else "undock"))
+        label = "Encaixar painel" if floating else "Destacar painel"
+        self.float_button.setToolTip(label)
+        self.float_button.setAccessibleName(label)
+
+    def _features_changed(self, features):
+        self.float_button.setVisible(
+            bool(features & QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        )
+        self.close_button.setVisible(
+            bool(features & QDockWidget.DockWidgetFeature.DockWidgetClosable)
+        )
+
+
+class FilterSplitterHandle(QSplitterHandle):
+    """A visible grip with the native vertical-resize mouse interaction."""
+
+    def __init__(self, orientation, parent):
+        super().__init__(orientation, parent)
+        self.setCursor(Qt.CursorShape.SizeVerCursor)
+        self.setToolTip(
+            "Arraste para cima ou para baixo para ajustar a lista de filtros"
+        )
+        self.setAccessibleName("Redimensionar altura da lista de filtros")
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#5798eb" if self.underMouse() else "#9797a2"))
+        painter.drawRoundedRect(
+            QRectF(self.width() / 2 - 16, self.height() / 2 - 1, 32, 2), 1, 1
+        )
+
+    def enterEvent(self, event):
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event):
+        super().leaveEvent(event)
+        self.update()
+
+
+class FilterSplitter(QSplitter):
+    def __init__(self, parent=None):
+        super().__init__(Qt.Orientation.Vertical, parent)
+        self.setObjectName("filterSplitter")
+        self.setHandleWidth(12)
+        self.setChildrenCollapsible(False)
+
+    def createHandle(self):
+        return FilterSplitterHandle(self.orientation(), self)
 
 
 class AdjustmentControl(QWidget):

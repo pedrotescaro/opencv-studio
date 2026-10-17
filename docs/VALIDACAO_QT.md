@@ -9,9 +9,10 @@ OpenCV contrib 4.14.0, NumPy 2.5.4 e Pillow 12.3.0.
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-Resultado final: **183 testes passaram**, sendo **76 da implementação Qt** e
+Resultado inicial: **183 testes passaram**, sendo **76 da implementação Qt** e
 107 de regressão dos algoritmos e interfaces anteriores. Os testes incluem
-subcasos; o catálogo de 104 filtros é percorrido integralmente.
+subcasos; o catálogo de 104 filtros é percorrido integralmente. A extensão de
+camadas descrita abaixo eleva o total para **205 testes: 98 Qt e 107 legados**.
 
 | Suíte Qt | Quantidade | Comportamentos verificados |
 | --- | ---: | --- |
@@ -20,6 +21,7 @@ subcasos; o catálogo de 104 filtros é percorrido integralmente.
 | `test_qt_advanced.py` | 22 | Cadastro e treino LBPH; chamadas; carregamento assíncrono; efeitos/exportação real de vídeo; cancelamento; cor/NPZ; GrabCut; crescimento; medições/CSV; morfologia/JSON; fechamento durante processamento |
 | `test_qt_services.py` | 9 | Equivalência dos serviços extraídos; compatibilidade de modelos e chamadas; vídeo real; execução completa da janela com imports Tk/legados proibidos |
 | `test_qt_window.py` | 13 | UI e receita integradas; seleção ao reeditar; desfazer/refazer; exportação integral; falhas de arquivo; níveis inválidos; widgets numéricos; workers responsivos e descarte de resultados antigos |
+| `test_qt_layers.py` | 22 | Composição alfa, modos de mesclagem, geometria, preview, projetos portáteis, arquivo inválido, importação por arraste, pilha, propriedades, duplicação, canvas e exportação |
 
 Três regressões receberam reprodução específica: exportações com a primeira
 renderização artificialmente atrasada conservam a ordem; presets voltam à
@@ -27,10 +29,10 @@ resolução total após a prévia; Escape descarta a prévia e limpa a seleção
 
 O Ruff passou na verificação de nomes/imports dos módulos novos e testes Qt.
 `git diff --check`, compilação dos módulos e análise sintática do iniciador
-PowerShell também passaram. Os 24 arquivos Python da aplicação e do preparo
+PowerShell também passaram. Os 29 arquivos Python da aplicação e do preparo
 facial foram analisados com a gramática Python 3.10. O runtime 3.10 não está
 instalado neste computador; a execução local foi em 3.14. A matriz GitHub Actions
-foi configurada para 3.10/3.14, mas não foi executada remotamente nesta entrega.
+executa em Windows com Python 3.10/3.14; o PR mostra o resultado do commit publicado.
 
 ## Revisão visual no Windows
 
@@ -61,6 +63,30 @@ sincronizados. O ícone de aplicar edição foi conferido como branco nos dois
 botões. Nova inspeção visual Windows em 1440×900/980×660 e os 13 testes da
 janela passaram. Evidências locais: `qt-icones-completos.json`, `qt-menu-0.png`,
 `qt-menu-2.png`, `qt-menu-4.png` e `qt-icones-completos-980.png`.
+
+O painel Filtros recebeu divisória vertical ajustável entre lista e parâmetros,
+sem o teto anterior de 260 pixels. Um arraste real com QTest alterou as alturas
+de 199 para 244 e depois 194 pixels. Os controles de destacar/encaixar e fechar
+agora têm ícones de 18 pixels e alvos de 28×28. Foram exercitados destacar,
+encaixar, fechar, recuperar pelo menu e duplo clique no cabeçalho. A interface
+continuou em 980×660; os 13 testes da janela passaram. Evidência local em
+`qt-filtros-altura.json` e `qt-filtros-altura-depois.png`.
+
+## Camadas e redimensionamento horizontal
+
+A extensão de camadas acrescenta 22 testes, totalizando 205 com as regressões
+anteriores. Os testes verificam composição com alfa por valores conhecidos,
+clipping, redimensionamento sem bordas escuras, mesclagem, transformações antigas,
+importação por arraste na lista e nas propriedades, ordem, duplicação independente,
+visibilidade, opacidade, movimento no canvas como um único estado de histórico,
+desfazer/refazer, exportação e reabertura de projeto portátil. Arquivos corrompidos
+e dimensões NumPy forjadas são rejeitados antes de alocar suas matrizes.
+
+A inspeção Qt Windows com três camadas confirmou largura de painel de 330 para
+430 e depois 365 pixels por arraste da alça no cabeçalho. O projeto reabriu com
+as três camadas e o layout permaneceu em 980×660, sem sobreposição dos docks.
+Artefatos locais: `qt-camadas-final.png`, `qt-camadas-980.png`,
+`qt-filtros-redimensionaveis.png` e `qt-camadas-final.json`.
 
 ## Treino facial realmente executado
 

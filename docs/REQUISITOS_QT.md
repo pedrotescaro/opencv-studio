@@ -53,6 +53,9 @@ Os ajustes fotográficos, filtros, geometria, texto, curvas e níveis são recei
 reaplicadas sobre a original. A seleção fica armazenada em cada operação. O
 histórico armazena estados de receitas sem limite fixo. Exportar grava um raster
 na resolução total; o arquivo de imagem não é um projeto com a receita embutida.
+Para continuar editando as fontes separadas, salve o projeto .ocvproj. O painel
+Camadas permite importar por arraste, sobrepor, ordenar, duplicar, remover,
+renomear, mover, redimensionar, ocultar e mesclar imagens, com desfazer/refazer.
 
 Os resultados científicos aceitos no laboratório são etapas raster imutáveis;
 refaça esse processamento quando mudar uma etapa anterior que influencia sua

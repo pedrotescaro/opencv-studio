@@ -32,6 +32,11 @@ o primeiro salvamento exigir processamento mais demorado.
 | `studio/document.py` | `Document`: original imutável, receita e histórico |
 | `studio/history.py` | `History`, `HistoryEntry`: estados de operações ilimitados |
 | `studio/io.py` | `read_image`, `write_image`: formatos, Unicode e alfa |
+| `studio/layers.py` | Composição alfa correta, mesclagem, clipping e geometria de camadas |
+| `studio/project.py` | Receitas JSON e imagens NumPy em projeto portátil, sem pickle |
+| `studio/ui/layers.py` | `LayerPanel`, `LayerList`: propriedades e importação por arraste |
+| `studio/ui/layer_actions.py` | `LayerActions`: comandos, prévia e histórico das camadas |
+| `studio/ui/project_actions.py` | `ProjectActions`: I/O assíncrono de .ocvproj |
 | `studio/workers.py` | `Job`, `RenderController`: execução e coalescência |
 | `studio/faces.py` | `FacePanel`: cadastro, treino, modelo, análise e chamada |
 | `studio/video.py` | `VideoPanel`: arquivo/câmera, reprodução, efeitos e exportação |
@@ -63,6 +68,17 @@ de origem. A máscara é reconstruída pelo pipeline, inclusive na prévia reduz
 O histórico compartilha operandos raster imutáveis, em vez de multiplicar a
 imagem por cada alteração de slider. Pode crescer até o limite de RAM, sem um
 número máximo artificial de estados. Esse histórico é da sessão.
+
+Operações `base_layer` e `layer` são reconstruídas antes dos ajustes gerais.
+Cada camada conserva fonte, ID, nome, posição, tamanho, opacidade, visibilidade
+e modo de mesclagem. A prévia usa as mesmas coordenadas, escaladas para sua
+resolução. Ao arrastar, a inversa das transformações posteriores converte o
+deslocamento do canvas para a camada; a liberação confirma um estado de histórico.
+
+O projeto .ocvproj guarda a original e a receita atual com todos os operandos
+de imagem. A leitura limita tamanho, estrutura e tipos antes de carregar as
+matrizes; não extrai caminhos nem executa objetos. O salvamento usa temporário
+e substituição atômica. Exportação produz uma composição raster independente.
 
 Faces usam os diretórios pessoais/demo existentes, hashes de amostras e modelo
 persistente. O reconhecedor protege os acessos ao modelo; o processamento do
