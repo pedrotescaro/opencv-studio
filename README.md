@@ -284,7 +284,7 @@ reconhecimento ao vivo; a exportação completa parte de um arquivo.
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_qt_*.py" -v
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_qt*.py" -v
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_[!q]*.py" -v
+.\.venv\Scripts\python.exe tests/run_legacy.py
 ```
 
 Os testes Qt usam a plataforma offscreen. Para inspeção visual no Windows,

@@ -31,3 +31,5 @@
 !/tests/
 /tests/*
 !/tests/test_*.py
+
+!/tests/run_legacy.py

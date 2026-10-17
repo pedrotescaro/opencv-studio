@@ -7,14 +7,17 @@ OpenCV contrib 4.14.0, NumPy 2.5.4 e Pillow 12.3.0.
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_qt*.py" -v
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_[!q]*.py" -v
+.\.venv\Scripts\python.exe tests/run_legacy.py
 ```
 
 O CI executa Qt e o legado Tk em processos distintos. Isso mantém os mesmos
-238 testes e evita que o coletor de ciclos de um worker Qt descarte variáveis
-Tk criadas pelas antigas interfaces, que exigem a thread principal. A falha
-`Tcl_AsyncDelete` foi reproduzida no CI Python 3.10 ao misturar as duas suítes.
-A aplicação Qt continua sendo testada também com imports Tk proibidos.
+238 testes. Os workers antigos também podem disparar a coleta de ciclos de
+variáveis Tk já fechadas; elas exigem a thread principal. O runner legado
+desativa apenas a coleta automática de ciclos durante a suíte e chama
+`gc.collect()` na thread principal entre os casos, sem suprimir exceções nem
+retirar testes. A falha `Tcl_AsyncDelete` foi reproduzida nas duas versões do
+CI antes desse ajuste. A aplicação Qt continua sendo testada também com
+imports Tk proibidos.
 
 Resultado inicial: **183 testes passaram**, sendo **76 da implementação Qt** e
 107 de regressão dos algoritmos e interfaces anteriores. Os testes incluem
