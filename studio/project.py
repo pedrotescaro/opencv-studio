@@ -9,7 +9,7 @@ import zipfile
 import math
 import numpy as np
 from .filters import Operation, validate_image
-from .layers import layer_rect, BLEND_MODES
+from .layers import layer_rect, BLEND_MODES, effective_opacity
 
 MAX_BYTES = 1_000_000_000
 
@@ -44,7 +44,7 @@ def write_project(path, original, operations):
 
     payload = {
         "format": "opencv-studio",
-        "version": 2,
+        "version": 3,
         "original": encode(original),
         "operations": [
             encode(
@@ -121,7 +121,7 @@ def read_project(path):
             if (
                 not isinstance(payload, dict)
                 or payload.get("format") != "opencv-studio"
-                or payload.get("version") not in (1, 2)
+                or payload.get("version") not in (1, 2, 3)
             ):
                 raise ValueError("Formato ou versão de projeto incompatível.")
             arrays = {}
@@ -215,6 +215,17 @@ def read_project(path):
                         )
                     ids.add(layer_id)
                     op.params.setdefault("name", op.name or "Camada")
+                    if any(
+                        key in op.params and not isinstance(op.params[key], bool)
+                        for key in (
+                            "locked",
+                            "lock_alpha",
+                            "lock_pixels",
+                            "lock_position",
+                        )
+                    ):
+                        raise ValueError("Os bloqueios da camada devem ser booleanos.")
+                    effective_opacity(op.params)
                     opacity = float(op.params.get("opacity", 1))
                     if (
                         not isinstance(op.params["name"], str)

@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 
 from studio.document import Operation
 from studio.io import read_image, write_image
-from studio.layers import layer_transform
+from studio.layers import layer_transform, can_edit_pixels, blocks_layer_change
 from studio.selection import from_mask, modify, selection_mask
 from studio.selection_edits import active_layer, edit_pixels
 
@@ -103,7 +103,7 @@ class SelectionActions:
             "Camada por corte",
             lambda: self.edit_selection_pixels("cut"),
             "cut",
-            selected and editable,
+            selected and editable and self._active_layer_writable("cut"),
             "Ctrl+Shift+J",
         )
         action(
@@ -120,7 +120,11 @@ class SelectionActions:
             "Transformação livre da camada…",
             self.transform_layer_dialog,
             "resize",
-            editable and self.layer_panel.current_id != "base",
+            editable
+            and self.layer_panel.current_id != "base"
+            and not blocks_layer_change(
+                self._layer_params(self.layer_panel.current_id) or {}, {"x", "width"}
+            ),
             "Ctrl+T",
         )
         action(
@@ -136,21 +140,21 @@ class SelectionActions:
             "Preencher…",
             lambda: self.edit_selection_pixels("fill"),
             "fill",
-            editable,
+            editable and self._active_layer_writable("fill"),
         )
         action(
             menu,
             "Traçar contorno…",
             lambda: self.edit_selection_pixels("stroke"),
             "stroke",
-            selected and editable,
+            selected and editable and self._active_layer_writable("stroke"),
         )
         action(
             menu,
             "Apagar pixels",
             lambda: self.edit_selection_pixels("delete"),
             "discard",
-            selected and editable,
+            selected and editable and self._active_layer_writable("delete"),
             "Delete",
         )
         return menu
@@ -188,6 +192,11 @@ class SelectionActions:
             )
         except (ValueError, KeyError):
             return False
+
+    def _active_layer_writable(self, action):
+        return can_edit_pixels(
+            self._layer_params(self.layer_panel.current_id or "base") or {}, action
+        )
 
     def select_all(self):
         if self.document.original is None or self.stack.currentIndex() != 0:
@@ -354,6 +363,9 @@ class SelectionActions:
         selection = self.canvas.selection
         if action in ("copy", "cut", "stroke", "delete") and not selection:
             return
+        if not self._active_layer_writable(action):
+            self.status("Desbloqueie a camada para editar seus pixels.")
+            return
         if not self._active_layer_editable():
             self.status(
                 "Selecione uma camada editável, anterior ao resultado rasterizado."
@@ -462,6 +474,7 @@ class SelectionActions:
         if (
             layer_id == "base"
             or not self._active_layer_editable()
+            or blocks_layer_change(self._layer_params(layer_id) or {}, {"x", "width"})
             or not self.apply_draft()
         ):
             self.status("Selecione uma camada sobreposta para transformar.")

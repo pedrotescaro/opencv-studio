@@ -74,8 +74,8 @@ continuam disponíveis para regressão dos algoritmos e migração dos dados.
 
 - Menu **Arquivo, Editar, Imagem, Filtros, Visualizar**.
 - Ferramentas vetoriais à esquerda; canvas no centro; docks à direita.
-- **Ajustes**, **Filtros**, **Histograma** e **Camadas** têm abas; **Histórico**
-  fica abaixo. Arraste, destaque, redimensione ou feche os docks. **Visualizar →
+- **Ajustes**, **Filtros**, **Histograma** e **Histórico** dividem abas no grupo
+  superior. **Camadas** fica em um painel próprio abaixo, sempre visível. Arraste, destaque, redimensione ou feche os docks. **Visualizar →
   Painéis** os recupera. O mesmo espaço atende janelas pequenas por rolagem local.
 - No painel **Filtros**, arraste a barra horizontal entre a lista e os parâmetros
   para aumentar ou diminuir a altura da lista. Os parâmetros têm rolagem própria.
@@ -158,8 +158,8 @@ encobrir a alteração no fundo. A seleção é convertida às coordenadas da fo
 inclusive após redimensionar, recortar ou girar o documento. As ações de pixels
 entram no histórico; corte preserva transparência, e as imagens fonte editadas
 ficam no projeto .ocvproj. A original do documento permanece imutável. Novos
-projetos usam o formato versão 2; os projetos anteriores (versão 1) continuam
-abrindo nesta versão do editor.
+projetos usam o formato versão 3, com preenchimento e bloqueios; os projetos
+anteriores (versões 1 e 2) continuam abrindo nesta versão do editor.
 
 **Transformação livre da camada** abre controles numéricos de posição X/Y e
 largura/altura, com prévia e cancelar/aplicar. As alças no canvas transformam a
@@ -171,21 +171,37 @@ as ações nesse caso.
 
 ## Camadas e projetos
 
-Abra a aba **Camadas**, use **Adicionar imagens como camadas…** ou arraste
+No painel **Camadas**, use o ícone de pasta no rodapé ou arraste
 arquivos para o painel. O botão com imagens empilhadas na barra superior faz
 a mesma importação. Sem documento aberto, a primeira imagem vira o fundo.
 As demais são centralizadas e ajustadas para caber na área da imagem original.
 
 A primeira linha é a camada da frente. Arraste as linhas ou use as setas para
-mudar sua ordem. As caixas de seleção mostram/ocultam; duplo clique renomeia;
+mudar sua ordem. O ícone de olho mostra/oculta; Espaço também alterna a
+visibilidade da linha selecionada. Duplo clique no nome renomeia;
 os botões duplicam e removem. O fundo permanece na base, com visibilidade e
 opacidade ajustáveis. Há mesclagem **Normal, Multiplicar, Tela e Sobrepor**.
 
 Selecione a camada, escolha **Mover (V)** e arraste sua imagem no canvas.
 Espaço+arraste e botão do meio continuam movendo a visualização. Os campos
-X/Y e largura/altura ficam abaixo da lista, com opção de manter a proporção;
-role o painel para acessar as propriedades em janelas menores. Desfazer/refazer
-incluem importação, ordem, posição, tamanho, opacidade e visibilidade.
+X/Y e largura/altura ficam no botão **Propriedades** (ícone de ajustes no rodapé),
+com opção de manter a proporção. A janela flutuante permite selecionar outras
+camadas e não reduz a área da lista. Desfazer/refazer incluem importação, ordem,
+posição, tamanho, opacidade, preenchimento, visibilidade e bloqueios.
+
+O painel usa linhas compactas com olho, miniatura sobre xadrez de transparência,
+nome e cadeado. Opacidade, preenchimento e mesclagem ficam no topo; criar,
+importar, ordenar, duplicar, propriedades e lixeira ficam fixos no rodapé.
+A lista tem rolagem própria e o painel continua redimensionável nos dois eixos.
+
+Os quatro bloqueios protegem transparência, edição de pixels, posição/tamanho
+ou a camada inteira. Bloquear transparência mantém o alfa ao preencher ou
+traçar e impede corte/remoção de pixels. Bloquear pixels permite mover a
+camada; bloquear posição permite pintar. O bloqueio total também impede
+remoção e ajustes de aparência. Copiar/duplicar continua permitido, e a cópia
+fica desbloqueada. Os filtros gerais do documento continuam atuando sobre a
+composição. Preenchimento multiplica a cobertura dos pixels pela opacidade;
+esta implementação não possui estilos de camada.
 
 Os ajustes e filtros gerais são reaplicados à composição completa. As imagens
 das camadas permanecem separadas e imutáveis na receita. Duplicar o documento

@@ -94,8 +94,8 @@ deslocamento do canvas para a camada; a liberação confirma um estado de histó
 O projeto .ocvproj guarda a original e a receita atual com todos os operandos
 de imagem. A leitura limita tamanho, estrutura e tipos antes de carregar as
 matrizes; não extrai caminhos nem executa objetos. O salvamento usa temporário
-e substituição atômica. A versão 2 preserva as novas máscaras e os pixels do
-fundo; a leitura continua aceitando projetos da versão 1. A versão explícita
+e substituição atômica. A versão 3 preserva também preenchimento e bloqueios;
+a leitura continua aceitando projetos das versões 1 e 2. A versão explícita
 impede que editores antigos abram a nova receita ignorando esses dados.
 Exportação produz uma composição raster independente.
 
@@ -119,3 +119,21 @@ e máscaras são calculadas em pixels de origem, independentemente do zoom.
 O código está nos arquivos reais do repositório, sem geradores necessários para
 executar e sem tarefas pendentes ou botões fictícios. A matriz de aceitação e
 as limitações são apresentadas em [REQUISITOS_QT.md](REQUISITOS_QT.md).
+
+
+## Painel compacto de camadas
+
+`LayerDelegate` desenha olho, miniatura com xadrez, nome elidido e cadeado em
+linhas de 40 pixels, mantendo edição do nome e reordenação do QListWidget.
+Ícones ficam em cache; o cache de miniaturas retém apenas as fontes atuais.
+O grupo superior de docks inclui Histórico; Camadas ocupa um dock independente.
+Os percentuais numéricos compactos e bloqueios ficam fixos no topo, com ações
+fixas na base e rolagem somente na lista. Propriedades usa uma janela Qt Tool
+não modal para não comprimir a lista em 980×660.
+
+Preenchimento e opacidade multiplicam o alfa no compositor. Os bloqueios são
+metadados de cada operação e integram snapshots/projetos. Controladores recusam
+alterações de geometria/remoção/aparência conforme o bloqueio, e a edição de
+pixels valida o contrato também no serviço puro. O bloqueio de transparência
+restaura o alfa da fonte e preserva pixels totalmente transparentes. Bloqueios
+não impedem copiar e não alteram os filtros globais da composição.

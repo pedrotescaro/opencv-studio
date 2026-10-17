@@ -67,6 +67,9 @@ na resolução total; o arquivo de imagem não é um projeto com a receita embut
 Para continuar editando as fontes separadas, salve o projeto .ocvproj. O painel
 Camadas permite importar por arraste, sobrepor, ordenar, duplicar, remover,
 renomear, mover, redimensionar, ocultar e mesclar imagens, com desfazer/refazer.
+O painel independente mantém lista compacta com olho/miniatura/cadeado,
+opacidade/preenchimento e quatro bloqueios funcionais. As ações ficam fixas no
+rodapé; posição/tamanho abrem em Propriedades, sem comprimir a lista.
 
 Os resultados científicos aceitos no laboratório são etapas raster imutáveis;
 refaça esse processamento quando mudar uma etapa anterior que influencia sua

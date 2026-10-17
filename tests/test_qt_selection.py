@@ -150,7 +150,7 @@ class SelectionPixelsTests(unittest.TestCase):
             path = Path(folder) / "selection.ocvproj"
             write_project(path, self.image, operations)
             with zipfile.ZipFile(path) as archive:
-                self.assertEqual(json.loads(archive.read("project.json"))["version"], 2)
+                self.assertEqual(json.loads(archive.read("project.json"))["version"], 3)
             original, restored = read_project(path)
             np.testing.assert_array_equal(
                 render_pipeline(original, restored),

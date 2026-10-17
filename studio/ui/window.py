@@ -585,7 +585,7 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         self.search.setPlaceholderText("Buscar entre todos os filtros…")
         fl.addWidget(self.search)
         self.filter_list = QListWidget()
-        self.filter_list.setMinimumHeight(80)
+        self.filter_list.setMinimumHeight(40)
         for category, names in FILTERS.items():
             category_icon = icon(FILTER_CATEGORY_ICONS[category])
             for name in names:
@@ -622,7 +622,7 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         details_layout.addLayout(buttons)
         details_layout.addStretch()
         details_scroll = self._scroll(filter_details)
-        details_scroll.setMinimumHeight(100)
+        details_scroll.setMinimumHeight(60)
         self.filter_splitter.addWidget(details_scroll)
         self.filter_splitter.setStretchFactor(0, 1)
         self.filter_splitter.setStretchFactor(1, 1)
@@ -701,16 +701,16 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         tabs.addTab(self._scroll(stack_panel), "Pilha de edições")
         self.history_dock = self._dock("Histórico", tabs)
         self.splitDockWidget(
-            self.adjustments_dock, self.history_dock, Qt.Orientation.Vertical
+            self.adjustments_dock, self.layer_dock, Qt.Orientation.Vertical
         )
         self.tabifyDockWidget(self.adjustments_dock, self.filters_dock)
         self.tabifyDockWidget(self.filters_dock, self.hist_dock)
-        self.tabifyDockWidget(self.hist_dock, self.layer_dock)
+        self.tabifyDockWidget(self.hist_dock, self.history_dock)
         self.adjustments_dock.raise_()
         self.resizeDocks([self.adjustments_dock], [330], Qt.Orientation.Horizontal)
         self.resizeDocks(
-            [self.adjustments_dock, self.history_dock],
-            [560, 180],
+            [self.adjustments_dock, self.layer_dock],
+            [310, 430],
             Qt.Orientation.Vertical,
         )
         self.docks = [

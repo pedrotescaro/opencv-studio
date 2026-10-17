@@ -1,14 +1,13 @@
 """Layer list, file drops, opacity and transform controls; no pixel processing."""
 
 import cv2
-from PySide6.QtCore import Qt, Signal, QSize, QEvent
-from PySide6.QtGui import QIcon, QImage, QPixmap
+from PySide6.QtCore import Qt, Signal, QSize, QEvent, QRect, QPoint
+from PySide6.QtGui import QIcon, QImage, QPixmap, QColor, QPen
 from PySide6.QtWidgets import (
     QWidget,
     QListWidget,
     QListWidgetItem,
     QAbstractItemView,
-    QPushButton,
     QToolButton,
     QVBoxLayout,
     QHBoxLayout,
@@ -17,11 +16,147 @@ from PySide6.QtWidgets import (
     QComboBox,
     QSpinBox,
     QCheckBox,
-    QScrollArea,
+    QDialog,
+    QStyledItemDelegate,
+    QStyle,
+    QDoubleSpinBox,
 )
 from studio.layers import BLEND_MODES
 from .theme import icon
-from .widgets import AdjustmentControl
+
+
+class LayerPercent(QWidget):
+    """Compact editable percentage with the same signal contract as adjustments."""
+
+    changed = Signal()
+    released = Signal()
+
+    def __init__(self, label, parent=None):
+        super().__init__(parent)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        self.number = QDoubleSpinBox()
+        self.number.setRange(0, 100)
+        self.number.setDecimals(0)
+        self.number.setSuffix("%")
+        self.number.setValue(100)
+        self.number.setKeyboardTracking(False)
+        self.number.setFixedSize(60, 24)
+        self.number.setAccessibleName(label + " da camada")
+        self.number.valueChanged.connect(self.changed)
+        self.number.editingFinished.connect(self.released)
+        row.addWidget(self.number)
+        self.setFixedWidth(60)
+
+    def value(self):
+        return self.number.value()
+
+    def set_value(self, value, notify=False):
+        self.number.blockSignals(True)
+        self.number.setValue(value)
+        self.number.blockSignals(False)
+        if notify:
+            self.changed.emit()
+            self.released.emit()
+
+
+class LayerDelegate(QStyledItemDelegate):
+    """Dense eye/thumbnail/name rows, with the complete row available for dragging."""
+
+    LOCK_ROLE = Qt.ItemDataRole.UserRole + 1
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._icons = {name: icon(name) for name in ("eye", "eye_off", "lock")}
+
+    def sizeHint(self, option, index):
+        return QSize(180, 40)
+
+    @staticmethod
+    def eye_rect(rect):
+        return QRect(rect.left() + 2, rect.top(), 28, rect.height())
+
+    def paint(self, painter, option, index):
+        painter.save()
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        painter.fillRect(
+            option.rect,
+            QColor("#37465a" if selected else "#303034" if hovered else "#29292c"),
+        )
+        painter.setPen(QPen(QColor("#3b3b40"), 1))
+        painter.drawLine(option.rect.bottomLeft(), option.rect.bottomRight())
+        visible = index.data(Qt.ItemDataRole.CheckStateRole) in (
+            Qt.CheckState.Checked,
+            Qt.CheckState.Checked.value,
+        )
+        eye = self.eye_rect(option.rect)
+        self._icons["eye" if visible else "eye_off"].paint(
+            painter, eye.adjusted(6, 12, -6, -12)
+        )
+        thumb = QRect(option.rect.left() + 34, option.rect.top() + 4, 32, 32)
+        for y in range(0, 32, 4):
+            for x in range(0, 32, 4):
+                painter.fillRect(
+                    thumb.left() + x,
+                    thumb.top() + y,
+                    4,
+                    4,
+                    QColor("#77777c" if (x + y) % 8 else "#b2b2b8"),
+                )
+        thumbnail = index.data(Qt.ItemDataRole.DecorationRole)
+        if thumbnail is not None:
+            thumbnail.paint(painter, thumb, Qt.AlignmentFlag.AlignCenter)
+        painter.setPen(QPen(QColor("#d0d0d7" if selected else "#68686f"), 1))
+        painter.drawRect(thumb.adjusted(0, 0, -1, -1))
+        locked = bool(index.data(self.LOCK_ROLE))
+        text_rect = option.rect.adjusted(76, 0, -30 if locked else -8, 0)
+        painter.setFont(option.font)
+        painter.setPen(QColor("#eeeeF2" if visible else "#aaaab4"))
+        text = option.fontMetrics.elidedText(
+            str(index.data() or ""),
+            Qt.TextElideMode.ElideRight,
+            max(0, text_rect.width()),
+        )
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter, text)
+        if locked:
+            self._icons["lock"].paint(
+                painter, QRect(option.rect.right() - 23, option.rect.top() + 12, 16, 16)
+            )
+        painter.restore()
+
+    def editorEvent(self, event, model, option, index):
+        if event.type() == QEvent.Type.KeyPress and event.key() in (
+            Qt.Key.Key_Space,
+            Qt.Key.Key_Select,
+        ):
+            visible = index.data(Qt.ItemDataRole.CheckStateRole) in (
+                Qt.CheckState.Checked,
+                Qt.CheckState.Checked.value,
+            )
+            return model.setData(
+                index,
+                Qt.CheckState.Unchecked if visible else Qt.CheckState.Checked,
+                Qt.ItemDataRole.CheckStateRole,
+            )
+        if (
+            event.type() == QEvent.Type.MouseButtonRelease
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.eye_rect(option.rect).contains(event.position().toPoint())
+        ):
+            visible = index.data(Qt.ItemDataRole.CheckStateRole) in (
+                Qt.CheckState.Checked,
+                Qt.CheckState.Checked.value,
+            )
+            return model.setData(
+                index,
+                Qt.CheckState.Unchecked if visible else Qt.CheckState.Checked,
+                Qt.ItemDataRole.CheckStateRole,
+            )
+        return False
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect.adjusted(74, 5, -28, -5))
 
 
 class LayerList(QListWidget):
@@ -30,7 +165,14 @@ class LayerList(QListWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(120)
+        self.setObjectName("layerList")
+        self.setMinimumHeight(80)
+        self.setItemDelegate(LayerDelegate(self))
+        self.setMouseTracking(True)
+        self.setEditTriggers(
+            QAbstractItemView.EditTrigger.DoubleClicked
+            | QAbstractItemView.EditTrigger.EditKeyPressed
+        )
         self.setIconSize(QSize(42, 34))
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setDefaultDropAction(Qt.DropAction.MoveAction)
@@ -85,62 +227,76 @@ class LayerPanel(QWidget):
         self._selected_id = "base"
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        body = QWidget()
-        controls = QVBoxLayout(body)
-        controls.setContentsMargins(10, 8, 10, 10)
-        controls.setSpacing(7)
-        add = QPushButton("Adicionar imagens como camadas…")
-        add.setIcon(icon("open"))
-        add.clicked.connect(self.importRequested)
-        controls.addWidget(add)
-        self.opacity = AdjustmentControl("Opacidade", 0, 100, 100)
-        self.opacity.changed.connect(
-            lambda: self._change({"opacity": self.opacity.value() / 100})
-        )
-        self.opacity.released.connect(self.released)
-        controls.addWidget(self.opacity)
+        layout.setSpacing(0)
+        header = QWidget()
+        header.setObjectName("layerHeader")
+        controls = QVBoxLayout(header)
+        controls.setContentsMargins(7, 5, 7, 5)
+        controls.setSpacing(3)
         self.blend = QComboBox()
+        self.blend.setFixedHeight(26)
+        self.blend.setAccessibleName("Modo de mesclagem da camada")
         for key, label in BLEND_MODES.items():
             self.blend.addItem(label, key)
         self.blend.currentIndexChanged.connect(self._blend_changed)
         controls.addWidget(self.blend)
+        percentages = QHBoxLayout()
+        percentages.setSpacing(4)
+        percentages.addWidget(QLabel("Opacidade:"))
+        self.opacity = LayerPercent("Opacidade")
+        self.opacity.changed.connect(
+            lambda: self._change({"opacity": self.opacity.value() / 100})
+        )
+        self.opacity.released.connect(self.released)
+        percentages.addWidget(self.opacity)
+        percentages.addStretch()
+        percentages.addWidget(QLabel("Preench.:"))
+        self.fill = LayerPercent("Preenchimento")
+        self.fill.setToolTip("Cobertura dos pixels da camada")
+        self.fill.changed.connect(
+            lambda: self._change({"fill": self.fill.value() / 100})
+        )
+        self.fill.released.connect(self.released)
+        percentages.addWidget(self.fill)
+        controls.addLayout(percentages)
+        locks = QHBoxLayout()
+        locks.setSpacing(2)
+        locks.addWidget(QLabel("Bloquear:"))
+        self.lock_buttons = {}
+        for key, label, glyph in (
+            ("lock_alpha", "Bloquear transparência", "lock_alpha"),
+            ("lock_pixels", "Bloquear edição de pixels", "lock_pixels"),
+            ("lock_position", "Bloquear posição e tamanho", "pan"),
+            ("locked", "Bloquear camada", "lock"),
+        ):
+            button = QToolButton()
+            button.setCheckable(True)
+            button.setFixedSize(24, 24)
+            button.setIconSize(QSize(16, 16))
+            button.setIcon(icon(glyph))
+            button.setToolTip(label)
+            button.setAccessibleName(label)
+            button.clicked.connect(lambda checked, k=key: self._toggle_lock(k, checked))
+            locks.addWidget(button)
+            self.lock_buttons[key] = button
+        locks.addStretch()
+        controls.addLayout(locks)
+        layout.addWidget(header)
         self.list = LayerList()
         self.list.currentItemChanged.connect(self._selection_changed)
         self.list.itemChanged.connect(self._item_changed)
         self.list.filesDropped.connect(self.filesDropped)
         self.list.orderChanged.connect(self.orderChanged)
-        controls.addWidget(self.list, 1)
-        row = QHBoxLayout()
-        self.buttons = {}
-        for key, label, glyph in (
-            ("up", "Subir camada", "layer_up"),
-            ("down", "Descer camada", "layer_down"),
-            ("duplicate", "Duplicar camada", "duplicate"),
-            ("remove", "Remover camada", "discard"),
-        ):
-            button = QToolButton()
-            button.setIcon(icon(glyph))
-            button.setIconSize(QSize(18, 18))
-            button.setToolTip(label)
-            button.setAccessibleName(label)
-            button.clicked.connect(
-                lambda checked=False, action=key: self.actionRequested.emit(
-                    action, self.current_id
-                )
-            )
-            row.addWidget(button)
-            self.buttons[key] = button
-        row.addStretch()
-        controls.addLayout(row)
-        note = QLabel(
-            "Topo = frente · marque para mostrar · duplo clique para renomear"
-        )
-        note.setWordWrap(True)
-        note.setProperty("muted", True)
-        controls.addWidget(note)
-        form = QGridLayout()
+        layout.addWidget(self.list, 1)
+        self.properties = QDialog(self, Qt.WindowType.Tool)
+        self.properties.setWindowTitle("Propriedades da camada")
+        self.properties.setMinimumWidth(300)
+        properties_layout = QVBoxLayout(self.properties)
+        properties_layout.setContentsMargins(5, 5, 5, 5)
+        body = QWidget()
+        form = QGridLayout(body)
+        form.setContentsMargins(7, 5, 7, 5)
+        form.setSpacing(4)
         self.geometry_controls = {}
         for index, (key, label) in enumerate(
             (("x", "X"), ("y", "Y"), ("width", "Largura"), ("height", "Altura"))
@@ -156,24 +312,85 @@ class LayerPanel(QWidget):
             form.addWidget(QLabel(label), index // 2, (index % 2) * 2)
             form.addWidget(field, index // 2, (index % 2) * 2 + 1)
             self.geometry_controls[key] = field
-        controls.addLayout(form)
-        self.aspect = QCheckBox("Manter proporção ao redimensionar")
+        self.aspect = QCheckBox("Manter proporção")
         self.aspect.setChecked(True)
-        controls.addWidget(self.aspect)
-        self.move_note = QLabel(
-            "Com a camada selecionada, use Mover e arraste no canvas. Espaço + arrastar move a visualização."
+        form.addWidget(self.aspect, 2, 0, 1, 4)
+        properties_layout.addWidget(body)
+        self.properties.finished.connect(
+            lambda _: self.buttons["properties"].setChecked(False)
         )
-        self.move_note.setWordWrap(True)
-        self.move_note.setProperty("muted", True)
-        controls.addWidget(self.move_note)
-        scroll.setWidget(body)
-        layout.addWidget(scroll)
+        self.properties.hide()
+        footer = QWidget()
+        footer.setObjectName("layerFooter")
+        row = QHBoxLayout(footer)
+        row.setContentsMargins(4, 2, 4, 2)
+        row.setSpacing(1)
+        self.buttons = {}
+        for key, label, glyph in (
+            ("new", "Nova camada transparente", "new_layer"),
+            ("import", "Adicionar imagens como camadas", "open"),
+            ("up", "Subir camada", "layer_up"),
+            ("down", "Descer camada", "layer_down"),
+            ("duplicate", "Duplicar camada", "duplicate"),
+            ("properties", "Propriedades: posição e tamanho", "adjustments"),
+            ("remove", "Remover camada", "trash"),
+        ):
+            button = QToolButton()
+            button.setFixedSize(28, 28)
+            button.setIcon(icon(glyph))
+            button.setIconSize(QSize(18, 18))
+            button.setToolTip(label)
+            button.setAccessibleName(label)
+            if key == "properties":
+                button.setCheckable(True)
+                button.toggled.connect(self._show_properties)
+            elif key == "import":
+                button.clicked.connect(self.importRequested)
+            else:
+                button.clicked.connect(
+                    lambda checked=False, action=key: self.actionRequested.emit(
+                        action, self.current_id
+                    )
+                )
+            if key == "remove":
+                row.addStretch()
+            row.addWidget(button)
+            self.buttons[key] = button
+        layout.addWidget(footer)
         self.set_layers([])
         # A drop anywhere in this panel adds layers, including on properties;
         # it must never bubble up to MainWindow's document-replacement drop.
         for widget in [self, *self.findChildren(QWidget)]:
             widget.setAcceptDrops(True)
             widget.installEventFilter(self)
+
+    def _show_properties(self, visible):
+        if visible:
+            self.properties.adjustSize()
+            point = self.mapToGlobal(QPoint(-self.properties.width() - 8, 0))
+            screen = self.screen().availableGeometry()
+            point.setX(
+                max(
+                    screen.left(),
+                    min(point.x(), screen.right() - self.properties.width()),
+                )
+            )
+            point.setY(
+                max(
+                    screen.top(),
+                    min(point.y(), screen.bottom() - self.properties.height()),
+                )
+            )
+            self.properties.move(point)
+            self.properties.show()
+            self.properties.raise_()
+        else:
+            self.properties.hide()
+
+    def hideEvent(self, event):
+        self.buttons["properties"].setChecked(False)
+        self.properties.hide()
+        super().hideEvent(event)
 
     def eventFilter(self, watched, event):
         if (
@@ -207,7 +424,7 @@ class LayerPanel(QWidget):
                 return
 
     def _thumbnail(self, layer_id, image):
-        key = (layer_id, image.__array_interface__["data"][0], image.shape)
+        key = (layer_id, id(image), image.shape)
         if key not in self._thumbnails:
             ratio = min(42 / image.shape[1], 34 / image.shape[0])
             small = cv2.resize(
@@ -231,8 +448,8 @@ class LayerPanel(QWidget):
                 small.strides[0],
                 QImage.Format.Format_RGBA8888,
             ).copy()
-            self._thumbnails[key] = QIcon(QPixmap.fromImage(qimage))
-        return self._thumbnails[key]
+            self._thumbnails[key] = (image, QIcon(QPixmap.fromImage(qimage)))
+        return self._thumbnails[key][1]
 
     def set_layers(self, layers, selected_id=None):
         self._loading = True
@@ -244,6 +461,13 @@ class LayerPanel(QWidget):
                 self._thumbnail(layer["id"], layer["image"]), layer["name"]
             )
             item.setData(Qt.ItemDataRole.UserRole, layer["id"])
+            item.setData(
+                LayerDelegate.LOCK_ROLE,
+                any(
+                    layer.get(key, False)
+                    for key in ("locked", "lock_position", "lock_pixels", "lock_alpha")
+                ),
+            )
             item.setFlags(
                 item.flags()
                 | Qt.ItemFlag.ItemIsUserCheckable
@@ -255,6 +479,14 @@ class LayerPanel(QWidget):
                 else Qt.CheckState.Unchecked
             )
             self.list.addItem(item)
+        current_thumbnails = {
+            (layer["id"], id(layer["image"]), layer["image"].shape) for layer in layers
+        }
+        self._thumbnails = {
+            key: value
+            for key, value in self._thumbnails.items()
+            if key in current_thumbnails
+        }
         self._loading = False
         self.select_layer(
             keep if keep in self._layers else (layers[0]["id"] if layers else "")
@@ -278,7 +510,15 @@ class LayerPanel(QWidget):
         self.opacity.setEnabled(enabled)
         base = enabled and layer["id"] == "base"
         self.opacity.set_value(round(layer.get("opacity", 1) * 100) if layer else 100)
-        self.blend.setEnabled(enabled and not base)
+        locked = bool(layer and layer.get("locked", False))
+        position_locked = locked or bool(layer and layer.get("lock_position", False))
+        self.fill.set_value(round(layer.get("fill", 1) * 100) if layer else 100)
+        self.fill.setEnabled(enabled and not locked)
+        self.opacity.setEnabled(enabled and not locked)
+        for key, button in self.lock_buttons.items():
+            button.setChecked(bool(layer and layer.get(key, False)))
+            button.setEnabled(enabled and (key == "locked" or not locked))
+        self.blend.setEnabled(enabled and not base and not locked)
         self.blend.setCurrentIndex(
             max(
                 0,
@@ -288,7 +528,7 @@ class LayerPanel(QWidget):
             )
         )
         for key, field in self.geometry_controls.items():
-            field.setEnabled(enabled and not base)
+            field.setEnabled(enabled and not base and not position_locked)
             fallback = (
                 layer["image"].shape[1 if key == "width" else 0]
                 if layer and key in ("width", "height")
@@ -300,9 +540,26 @@ class LayerPanel(QWidget):
                 else (1 if key in ("width", "height") else 0)
             )
         for key, button in self.buttons.items():
-            button.setEnabled(enabled and (not base or key == "duplicate"))
-        self.aspect.setEnabled(enabled and not base)
+            button.setEnabled(
+                key == "import"
+                or (
+                    enabled
+                    and (key in ("new", "duplicate", "properties") or not base)
+                    and (key != "remove" or not locked)
+                )
+            )
+        overlay_ids = [key for key in self._layers if key != "base"]
+        position = (
+            overlay_ids.index(self.current_id) if self.current_id in overlay_ids else -1
+        )
+        self.buttons["up"].setEnabled(position > 0)
+        self.buttons["down"].setEnabled(0 <= position < len(overlay_ids) - 1)
+        self.aspect.setEnabled(enabled and not base and not position_locked)
         self._loading = False
+
+    def _toggle_lock(self, key, checked):
+        self._change({key: checked})
+        self.released.emit()
 
     def _item_changed(self, item):
         if self._loading:

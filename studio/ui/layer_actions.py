@@ -7,7 +7,12 @@ import numpy as np
 from PySide6.QtWidgets import QFileDialog
 from studio.document import Operation
 from studio.io import read_image
-from studio.layers import layer_rect, layer_transform
+from studio.layers import (
+    layer_rect,
+    layer_transform,
+    blocks_layer_change,
+    effective_opacity,
+)
 
 
 class LayerActions:
@@ -82,14 +87,17 @@ class LayerActions:
         )
         if params is None:
             return
+        if blocks_layer_change(params, changes):
+            self.status("A camada está bloqueada para essa alteração.")
+            self.refresh_layers(layer_id)
+            return
         if all(params.get(key) == value for key, value in changes.items()):
             return
         params.update(changes)
         try:
             if layer_id != "base":
                 layer_rect(params)
-            if not 0 <= float(params.get("opacity", 1)) <= 1:
-                raise ValueError("Opacidade inválida.")
+            effective_opacity(params)
         except (ValueError, TypeError) as exc:
             self.status(str(exc))
             return
@@ -221,6 +229,14 @@ class LayerActions:
         self.request_render(False)
 
     def layer_action(self, action, layer_id):
+        if action == "new":
+            self.new_empty_layer()
+            return
+        if action == "remove" and (self._layer_params(layer_id) or {}).get(
+            "locked", False
+        ):
+            self.status("Desbloqueie a camada antes de removê-la.")
+            return
         if self.document.original is None or not self.apply_draft():
             return
         operations = list(self.document.operations)
@@ -259,6 +275,10 @@ class LayerActions:
             layer_id = uuid4().hex
             params.update(
                 id=layer_id,
+                locked=False,
+                lock_position=False,
+                lock_pixels=False,
+                lock_alpha=False,
                 name=params.get("name", "Camada") + " cópia",
                 x=params.get("x", 0) + 20,
                 y=params.get("y", 0) + 20,
@@ -298,7 +318,11 @@ class LayerActions:
                 transform = layer_transform(
                     self.document.original.shape, operations, index
                 )
-                if transform is None or not op.params.get("visible", True):
+                if (
+                    transform is None
+                    or not op.params.get("visible", True)
+                    or blocks_layer_change(op.params, {"x", "y"})
+                ):
                     break
                 x, y, w, h = layer_rect(op.params)
                 corners = transform @ np.array(
@@ -330,6 +354,9 @@ class LayerActions:
         if transform is None:
             return
         params = operations[index].params
+        if blocks_layer_change(params, {"x", "y"}):
+            self._layer_drag = None
+            return
         self._layer_drag = (
             layer_id,
             params.get("x", 0),

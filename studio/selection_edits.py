@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from .filters import Operation, output_size
-from .layers import bgra, layer_rect, layer_transform
+from .layers import bgra, layer_rect, layer_transform, can_edit_pixels
 from .selection import paint_pixels, selection_mask
 
 
@@ -65,6 +65,8 @@ def edit_pixels(original, operations, layer_id, selection, action, color=None, w
     index, params, image, mask = layer_selection(
         original, operations, layer_id, selection
     )
+    if not can_edit_pixels(params, action):
+        raise ValueError("A camada está bloqueada para editar esses pixels.")
     selected_id = layer_id
     if not np.any(mask):
         raise ValueError("A seleção não alcança a camada ativa.")
@@ -97,6 +99,7 @@ def edit_pixels(original, operations, layer_id, selection, action, color=None, w
             width=max(1, round(w * sx)),
             height=max(1, round(h * sy)),
             opacity=params.get("opacity", 1),
+            fill=params.get("fill", 1),
             visible=True,
             blend=params.get("blend", "normal"),
         )
@@ -116,7 +119,12 @@ def edit_pixels(original, operations, layer_id, selection, action, color=None, w
                 image[:, :, 3].astype(np.float32) * (1 - mask.astype(np.float32) / 255)
             ).astype(np.uint8)
         elif action in ("fill", "stroke"):
+            alpha = image[:, :, 3].copy() if params.get("lock_alpha", False) else None
+            previous = image.copy() if alpha is not None else None
             image = paint_pixels(image, mask, color)
+            if alpha is not None:
+                image[:, :, 3] = alpha
+                image[alpha == 0] = previous[alpha == 0]
         else:
             raise ValueError("Ação de pixels desconhecida.")
         image.setflags(write=False)

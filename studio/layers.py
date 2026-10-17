@@ -34,14 +34,45 @@ def layer_rect(params):
     return int(params.get("x", 0)), int(params.get("y", 0)), width, height
 
 
+def effective_opacity(params):
+    opacity, fill = float(params.get("opacity", 1)), float(params.get("fill", 1))
+    if not all(np.isfinite(value) and 0 <= value <= 1 for value in (opacity, fill)):
+        raise ValueError("Opacidade e preenchimento devem estar entre zero e um.")
+    return opacity * fill if params.get("visible", True) else 0.0
+
+
+def blocks_layer_change(params, keys):
+    keys = set(keys)
+    if params.get("locked", False) and keys & {
+        "x",
+        "y",
+        "width",
+        "height",
+        "image",
+        "opacity",
+        "fill",
+        "blend",
+    }:
+        return True
+    return bool(
+        params.get("lock_position", False) and keys & {"x", "y", "width", "height"}
+    )
+
+
+def can_edit_pixels(params, action):
+    if action == "copy":
+        return True
+    if params.get("locked", False) or params.get("lock_pixels", False):
+        return False
+    return not (params.get("lock_alpha", False) and action in ("cut", "delete"))
+
+
 def base_layer(image, params):
     source = params.get("image", image)
     if source.shape[:2] != image.shape[:2]:
         raise ValueError("A imagem do fundo deve manter as dimensões do documento.")
     out = bgra(source)
-    opacity = float(params.get("opacity", 1)) if params.get("visible", True) else 0.0
-    if not np.isfinite(opacity) or not 0 <= opacity <= 1:
-        raise ValueError("A opacidade deve estar entre zero e um.")
+    opacity = effective_opacity(params)
     out[:, :, 3] = np.rint(out[:, :, 3].astype(np.float32) * opacity).astype(np.uint8)
     return out
 
@@ -52,7 +83,7 @@ def composite_layer(image, params):
     if not params.get("visible", True):
         return out
     x, y, width, height = layer_rect(params)
-    opacity = float(params.get("opacity", 1))
+    opacity = effective_opacity(params)
     mode = params.get("blend", "normal")
     if not np.isfinite(opacity) or not 0 <= opacity <= 1 or mode not in BLEND_MODES:
         raise ValueError("Opacidade ou modo de mesclagem inválido.")

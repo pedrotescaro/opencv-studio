@@ -38,6 +38,15 @@ QDockWidget::close-button,QDockWidget::float-button { padding:3px; }
 QWidget#dockTitleBar { background:#2d2d30; border-bottom:1px solid #38383b; }
 QWidget#dockTitleBar QLabel { background:transparent; font-weight:600; }
 QWidget#dockWidthGrip { background:transparent; }
+QWidget#layerHeader { background:#2d2d30; border-bottom:1px solid #3b3b40; }
+QWidget#layerHeader QLabel { background:transparent; }
+QWidget#layerHeader QDoubleSpinBox { padding:1px 3px; min-height:18px; }
+QWidget#layerHeader QComboBox { padding:1px 5px; min-height:20px; }
+QWidget#layerHeader QToolButton,QWidget#layerFooter QToolButton { padding:3px; }
+QWidget#layerFooter { background:#2d2d30; border-top:1px solid #414147; }
+QListWidget#layerList { background:#29292c; outline:0; }
+QListWidget#layerList::item { padding:0; border:0; }
+
 QWidget#dockTitleBar QToolButton { padding:3px; border:1px solid transparent; border-radius:4px; }
 QWidget#dockTitleBar QToolButton:hover { background:#414147; border-color:#62626b; }
 QPushButton { background:#343438; border:1px solid #49494f; border-radius:4px; padding:7px 11px; }
@@ -344,6 +353,55 @@ def _icon_pixmap(name, size, color):
     elif name == "discard":
         p.drawLine(6, 6, 18, 18)
         p.drawLine(18, 6, 6, 18)
+    elif name in ("eye", "eye_off"):
+        path = QPainterPath()
+        path.moveTo(2, 12)
+        path.cubicTo(7, 4, 17, 4, 22, 12)
+        path.cubicTo(17, 20, 7, 20, 2, 12)
+        p.drawPath(path)
+        p.drawEllipse(QRectF(9, 9, 6, 6))
+        if name == "eye_off":
+            p.drawLine(3, 3, 21, 21)
+    elif name == "lock":
+        p.drawRoundedRect(QRectF(5, 10, 14, 11), 2, 2)
+        path = QPainterPath()
+        path.moveTo(8, 10)
+        path.lineTo(8, 7)
+        path.cubicTo(8, 1, 16, 1, 16, 7)
+        path.lineTo(16, 10)
+        p.drawPath(path)
+        p.drawLine(12, 14, 12, 17)
+    elif name == "lock_alpha":
+        p.drawRect(QRectF(4, 4, 16, 16))
+        for x, y in (
+            (4, 4),
+            (12, 4),
+            (8, 8),
+            (16, 8),
+            (4, 12),
+            (12, 12),
+            (8, 16),
+            (16, 16),
+        ):
+            p.fillRect(QRectF(x, y, 4, 4), QColor(color))
+    elif name == "lock_pixels":
+        path = QPainterPath()
+        path.moveTo(5, 14)
+        path.lineTo(15, 4)
+        path.lineTo(20, 9)
+        path.lineTo(10, 19)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawLine(5, 14, 10, 19)
+        p.drawLine(3, 21, 10, 19)
+    elif name == "trash":
+        p.drawLine(4, 6, 20, 6)
+        p.drawLine(9, 3, 15, 3)
+        p.drawLine(6, 7, 7, 21)
+        p.drawLine(18, 7, 17, 21)
+        p.drawLine(7, 21, 17, 21)
+        p.drawLine(10, 10, 10, 17)
+        p.drawLine(14, 10, 14, 17)
     elif name == "cut":
         p.drawEllipse(QRectF(3, 14, 5, 5))
         p.drawEllipse(QRectF(14, 14, 5, 5))

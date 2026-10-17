@@ -13,7 +13,8 @@ Resultado inicial: **183 testes passaram**, sendo **76 da implementação Qt** e
 107 de regressão dos algoritmos e interfaces anteriores. Os testes incluem
 subcasos; o catálogo de 104 filtros é percorrido integralmente. A extensão de
 camadas elevou o total para 205. A extensão de seleção e menu de contexto
-eleva o total para **227 testes: 120 Qt e 107 legados**.
+elevou o total para 227. O painel compacto e os bloqueios elevam o total para
+**238 testes: 131 Qt e 107 legados**.
 
 | Suíte Qt | Quantidade | Comportamentos verificados |
 | --- | ---: | --- |
@@ -23,6 +24,7 @@ eleva o total para **227 testes: 120 Qt e 107 legados**.
 | `test_qt_services.py` | 9 | Equivalência dos serviços extraídos; compatibilidade de modelos e chamadas; vídeo real; execução completa da janela com imports Tk/legados proibidos |
 | `test_qt_window.py` | 13 | UI e receita integradas; seleção ao reeditar; desfazer/refazer; exportação integral; falhas de arquivo; níveis inválidos; widgets numéricos; workers responsivos e descarte de resultados antigos |
 | `test_qt_selection.py` | 22 | Máscaras combinadas e suaves, gestos, alças, nudge, menu e atalhos, coordenadas da camada, cópia/corte, alfa, preenchimento/contorno, prévias, projeto, histórico e retornos obsoletos |
+| `test_qt_layer_panel.py` | 11 | Olho e teclado, renomear, preenchimento, bloqueios de pixels/alfa/posição/total, rodapé fixo, propriedades, visibilidade dos docks, geometria mínima e compatibilidade de projetos |
 | `test_qt_layers.py` | 22 | Composição alfa, modos de mesclagem, geometria, preview, projetos portáteis, arquivo inválido, importação por arraste, pilha, propriedades, duplicação, canvas e exportação |
 
 Três regressões receberam reprodução específica: exportações com a primeira
@@ -109,6 +111,22 @@ restauraram a seleção, sem modificar a original. Menu e layout foram conferido
 em 1440×900 e 980×660. Evidências locais: `qt-menu-selecao-1440.png`,
 `qt-menu-selecao-980.png`, `qt-selecao-combinada.png`,
 `qt-selecao-transformar.png`, `qt-selecao-980.png` e `qt-selecao.json`.
+
+## Painel compacto conforme a referência
+
+O painel de camadas agora permanece separado dos docks com abas. As linhas têm
+40 pixels e exibem olho, miniatura, nome e cadeado. Foram exercitados visibilidade
+por clique e Espaço, renomear, preenchimento, desfazer/refazer, bloqueios,
+criar/duplicar/excluir e propriedades. Os testes puros verificam a multiplicação
+de cobertura, preservação do alfa, recusa das edições bloqueadas e projetos v3
+com leitura das versões anteriores.
+
+A inspeção Qt Windows confirmou duas linhas visíveis em 980×660, lista com
+rolagem própria, rodapé fixo e propriedades em uma janela independente. Os
+bloqueios de posição e edição são aplicados pelo controlador, além de
+aparecerem nos controles. Artefatos locais: `qt-painel-camadas-1440.png`,
+`qt-camadas-compactas-1440.png`, `qt-camadas-compactas-980.png`,
+`qt-camadas-propriedades-980.png` e `qt-camadas-compactas.json`.
 
 ## Treino facial realmente executado
 
