@@ -9,8 +9,12 @@ carvão, tipografia uniforme, controles compactos e uma única cor de ação azu
 - Espaçamento base 4 px; grupos 8/12/16 px; cantos de controles 4 px.
 - Menus Arquivo, Editar, Imagem, Filtros, Visualizar. Ferramentas visuais à
   esquerda, documentos no centro e docks recolhíveis/flutuantes à direita.
-- Ajustes, Filtros e Histograma/Curvas dividem abas; Histórico fica abaixo.
-  Os docks podem ser destacados, rearranjados ou ocultados por Visualizar.
+- Ajustes, Filtros, Histograma/Curvas e Histórico dividem abas no grupo superior.
+  Camadas fica em um dock próprio abaixo, sempre disponível. Linhas compactas
+  mostram olho, miniatura, nome e cadeado; mesclagem/opacidade/preenchimento e
+  bloqueios ficam no topo, ações no rodapé fixo. Posição e tamanho abrem em uma
+  janela de propriedades. Os docks podem ser destacados, redimensionados,
+  rearranjados ou ocultados por Visualizar.
 - Estado ativo, foco e ações primárias usam azul. Histogramas podem usar as
   cores dos canais por seu significado analítico, não como decoração.
 - Sem barras OpenCV nem `imshow`. Nenhuma janela Tk é criada na aplicação Qt.

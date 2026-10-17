@@ -44,15 +44,25 @@ from studio.filters import (
 )
 from studio.io import read_image, write_image
 from studio.workers import RenderController, Job
-from studio.ui.widgets import AdjustmentControl, HistogramWidget, CurveWidget
+from studio.ui.widgets import (
+    AdjustmentControl,
+    HistogramWidget,
+    CurveWidget,
+    DockTitleBar,
+    FilterSplitter,
+)
 from studio.ui.theme import FILTER_CATEGORY_ICONS, icon
+from studio.ui.layers import LayerPanel
+from studio.ui.layer_actions import LayerActions
+from studio.ui.project_actions import ProjectActions
+from studio.ui.selection_actions import SelectionActions
 
 IMAGE_TYPES = (
     "Imagens (*.png *.jpg *.jpeg *.bmp *.webp *.tif *.tiff);;Todos os arquivos (*)"
 )
 
 
-class MainWindow(QMainWindow):
+class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("OpenCV Studio")
@@ -61,6 +71,10 @@ class MainWindow(QMainWindow):
         self.document = Document()
         self.result = None
         self.modified = False
+        self.project_path = None
+        self._layer_preview = None
+        self._layer_drag = None
+        self._syncing_layers = False
         self.edit_index = None
         self.edit_selection = None
         self.jobs = []
@@ -108,8 +122,12 @@ class MainWindow(QMainWindow):
         self.canvas.zoomChanged.connect(self._zoom_changed)
         self.canvas.cursorChanged.connect(self._cursor)
         self.canvas.fileDropped.connect(self.open_path)
+        self.canvas.contextRequested.connect(self.show_canvas_menu)
         self.canvas.cropRequested.connect(self.apply_crop)
         self.canvas.textRequested.connect(self.add_text)
+        self.canvas.layerDragStarted.connect(self.start_layer_drag)
+        self.canvas.layerDragMoved.connect(self.move_layer_drag)
+        self.canvas.layerDragFinished.connect(self.finish_layer_drag)
         self.canvas.selectionChanged.connect(
             lambda _: self.request_render(True) if self.has_draft() else None
         )
@@ -161,6 +179,29 @@ class MainWindow(QMainWindow):
             "Exportar…", self.export_dialog, "Ctrl+Alt+S", icon_name="export"
         )
         file.addAction(self.export_action)
+        self.add_layer_action = self._action(
+            "Adicionar imagens como camadas…",
+            self.import_layers,
+            "Ctrl+Alt+O",
+            icon_name="layers",
+        )
+        file.addAction(self.add_layer_action)
+        file.addAction(
+            self._action(
+                "Abrir projeto com camadas…",
+                self.open_project,
+                "Ctrl+Shift+O",
+                icon_name="layers",
+            )
+        )
+        file.addAction(
+            self._action(
+                "Salvar projeto com camadas…",
+                lambda: self.save_project(True),
+                "Ctrl+Alt+P",
+                icon_name="save_as",
+            )
+        )
         file.addSeparator()
         file.addAction(
             self._action("Duplicar documento", self.duplicate, icon_name="duplicate")
@@ -195,6 +236,50 @@ class MainWindow(QMainWindow):
                 icon_name="deselect",
             )
         )
+        selection_menu = edit.addMenu(icon("rect"), "Seleção e camadas")
+        selection_menu.aboutToShow.connect(
+            lambda: self._populate_selection_menu(selection_menu)
+        )
+        for title, slot, shortcut, symbol in (
+            ("Selecionar tudo", self.select_all, "Ctrl+A", "rect"),
+            (
+                "Inverter seleção",
+                lambda: self.modify_selection("invert"),
+                "Ctrl+Shift+I",
+                "invert_selection",
+            ),
+            (
+                "Camada via cópia",
+                lambda: self.edit_selection_pixels("copy"),
+                "Ctrl+J",
+                "duplicate",
+            ),
+            (
+                "Camada por corte",
+                lambda: self.edit_selection_pixels("cut"),
+                "Ctrl+Shift+J",
+                "cut",
+            ),
+            (
+                "Nova camada transparente",
+                self.new_empty_layer,
+                "Ctrl+Shift+N",
+                "new_layer",
+            ),
+            (
+                "Transformação livre da camada…",
+                self.transform_layer_dialog,
+                "Ctrl+T",
+                "resize",
+            ),
+            (
+                "Apagar pixels selecionados",
+                lambda: self.edit_selection_pixels("delete"),
+                "Delete",
+                "discard",
+            ),
+        ):
+            self.addAction(self._action(title, slot, shortcut, icon_name=symbol))
         image = bar.addMenu("Imagem")
         for text, slot, icon_name in (
             ("Redimensionar…", self.resize_dialog, "resize"),
@@ -334,6 +419,7 @@ class MainWindow(QMainWindow):
         top.addAction(self.open_action)
         self.save_action.setIcon(icon("save"))
         top.addAction(self.save_action)
+        top.addAction(self.add_layer_action)
         top.addSeparator()
         for action in (self.undo_action, self.redo_action):
             action.setToolTip(f"{action.text()} ({action.shortcut().toString()})")
@@ -433,14 +519,23 @@ class MainWindow(QMainWindow):
         self.tool_label.setText(
             " " + self.tool_actions[name].text().split(" (")[0] + "  "
         )
+        self.tool_label.setMinimumWidth(
+            self.tool_label.fontMetrics().horizontalAdvance(self.tool_label.text()) + 8
+        )
         for action in self.crop_actions:
             action.setVisible(name == "crop")
-        self.status(self.options.toolTip())
+        if name in ("rect", "ellipse"):
+            self.status(
+                "Arraste para selecionar. Shift: adicionar · Alt: subtrair · Shift+Alt: interseção. Botão direito: ações da seleção."
+            )
+        else:
+            self.status(self.options.toolTip())
 
     def _dock(self, title, widget):
         dock = QDockWidget(title, self)
         dock.setObjectName(title)
         dock.setWidget(widget)
+        dock.setTitleBarWidget(DockTitleBar(dock))
         dock.setMinimumWidth(285)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         action = dock.toggleViewAction()
@@ -449,6 +544,7 @@ class MainWindow(QMainWindow):
             "Filtros": "effects",
             "Histograma": "histogram",
             "Histórico": "history",
+            "Camadas": "layers",
         }
         action.setIcon(icon(dock_icons[title]))
         action.setIconVisibleInMenu(True)
@@ -489,26 +585,30 @@ class MainWindow(QMainWindow):
         self.search.setPlaceholderText("Buscar entre todos os filtros…")
         fl.addWidget(self.search)
         self.filter_list = QListWidget()
-        self.filter_list.setMinimumHeight(110)
-        self.filter_list.setMaximumHeight(260)
+        self.filter_list.setMinimumHeight(40)
         for category, names in FILTERS.items():
             category_icon = icon(FILTER_CATEGORY_ICONS[category])
             for name in names:
                 self.filter_list.addItem(QListWidgetItem(category_icon, name))
-        fl.addWidget(self.filter_list, 1)
+        self.filter_splitter = FilterSplitter()
+        self.filter_splitter.addWidget(self.filter_list)
+        fl.addWidget(self.filter_splitter, 1)
+        filter_details = QWidget()
+        details_layout = QVBoxLayout(filter_details)
+        details_layout.setContentsMargins(0, 4, 0, 4)
         self.search.textChanged.connect(self.search_filters)
         self.filter_list.currentTextChanged.connect(self.choose_filter)
         self.enable_filter = QCheckBox("Prévia do filtro selecionado")
         self.enable_filter.toggled.connect(self.changed)
-        fl.addWidget(self.enable_filter)
+        details_layout.addWidget(self.enable_filter)
         self.parameters = QWidget()
         self.parameter_layout = QVBoxLayout(self.parameters)
         self.parameter_layout.setContentsMargins(0, 0, 0, 0)
-        fl.addWidget(self.parameters)
+        details_layout.addWidget(self.parameters)
         self.intensity = AdjustmentControl("Intensidade", 0, 100, 100)
         self.intensity.changed.connect(self.changed)
         self.intensity.released.connect(lambda: self.request_render(False))
-        fl.addWidget(self.intensity)
+        details_layout.addWidget(self.intensity)
         buttons = QHBoxLayout()
         apply = QPushButton("Aplicar edição")
         apply.setIcon(icon("apply"))
@@ -519,8 +619,15 @@ class MainWindow(QMainWindow):
         reset.setIcon(icon("discard"))
         reset.clicked.connect(self.reset_draft)
         buttons.addWidget(reset)
-        fl.addLayout(buttons)
-        self.filters_dock = self._dock("Filtros", self._scroll(filter_panel))
+        details_layout.addLayout(buttons)
+        details_layout.addStretch()
+        details_scroll = self._scroll(filter_details)
+        details_scroll.setMinimumHeight(60)
+        self.filter_splitter.addWidget(details_scroll)
+        self.filter_splitter.setStretchFactor(0, 1)
+        self.filter_splitter.setStretchFactor(1, 1)
+        self.filter_splitter.setSizes([220, 180])
+        self.filters_dock = self._dock("Filtros", filter_panel)
         curves_panel = QWidget()
         cl = QVBoxLayout(curves_panel)
         cl.setContentsMargins(12, 8, 12, 10)
@@ -565,6 +672,15 @@ class MainWindow(QMainWindow):
         cr.clicked.connect(self.reset_curves)
         cl.addWidget(cr)
         self.hist_dock = self._dock("Histograma", self._scroll(curves_panel))
+        self.layer_panel = LayerPanel()
+        self.layer_panel.importRequested.connect(self.import_layers)
+        self.layer_panel.filesDropped.connect(self.import_layers)
+        self.layer_panel.selected.connect(self.select_layer)
+        self.layer_panel.changed.connect(self.preview_layer)
+        self.layer_panel.released.connect(self.commit_layer_preview)
+        self.layer_panel.orderChanged.connect(self.reorder_layers)
+        self.layer_panel.actionRequested.connect(self.layer_action)
+        self.layer_dock = self._dock("Camadas", self.layer_panel)
         tabs = QTabWidget()
         self.history_list = QListWidget()
         self.history_list.currentRowChanged.connect(self.jump_history)
@@ -582,24 +698,26 @@ class MainWindow(QMainWindow):
             b = QPushButton(text)
             b.clicked.connect(slot)
             sl.addWidget(b)
-        tabs.addTab(stack_panel, "Pilha de edições")
+        tabs.addTab(self._scroll(stack_panel), "Pilha de edições")
         self.history_dock = self._dock("Histórico", tabs)
         self.splitDockWidget(
-            self.adjustments_dock, self.history_dock, Qt.Orientation.Vertical
+            self.adjustments_dock, self.layer_dock, Qt.Orientation.Vertical
         )
         self.tabifyDockWidget(self.adjustments_dock, self.filters_dock)
         self.tabifyDockWidget(self.filters_dock, self.hist_dock)
+        self.tabifyDockWidget(self.hist_dock, self.history_dock)
         self.adjustments_dock.raise_()
         self.resizeDocks([self.adjustments_dock], [330], Qt.Orientation.Horizontal)
         self.resizeDocks(
-            [self.adjustments_dock, self.history_dock],
-            [560, 180],
+            [self.adjustments_dock, self.layer_dock],
+            [310, 430],
             Qt.Orientation.Vertical,
         )
         self.docks = [
             self.adjustments_dock,
             self.filters_dock,
             self.hist_dock,
+            self.layer_dock,
             self.history_dock,
         ]
 
@@ -724,14 +842,19 @@ class MainWindow(QMainWindow):
         return ops
 
     def has_draft(self):
-        return self.edit_index is not None or bool(self._draft())
+        return (
+            self._layer_preview is not None
+            or self.edit_index is not None
+            or bool(self._draft())
+        )
 
     def all_operations(self):
         ops = list(self.document.operations)
         if self.edit_index is not None and self.edit_index < len(ops):
             ops[self.edit_index : self.edit_index + 1] = self._draft()
-            return ops
-        return ops + self._draft()
+        else:
+            ops += self._draft()
+        return self._with_layer_preview(ops)
 
     def request_render(self, reduced=False):
         self.debounce.stop()
@@ -756,6 +879,7 @@ class MainWindow(QMainWindow):
             key: value for key, value in self._render_sizes.items() if key >= generation
         }
         self.canvas.set_images(self.document.original, image, source_size=size)
+        self._sync_layer_overlay()
         self.histogram.set_image(image)
         self.dimension_label.setText(
             f"{size[0]:,} × {size[1]:,} px" + (" · prévia" if reduced else "")
@@ -794,6 +918,9 @@ class MainWindow(QMainWindow):
             self.open_path(path)
 
     def open_path(self, path):
+        if Path(path).suffix.lower() == ".ocvproj":
+            self.open_project(path)
+            return
         if not self._confirm_discard():
             return
         self._load_generation += 1
@@ -808,9 +935,11 @@ class MainWindow(QMainWindow):
         self._job(lambda: read_image(path), loaded)
 
     def open_array(self, image, path=None):
+        self._load_generation += 1
         self.reset_draft(render=False)
         self.canvas.clear_selection()
         self.document.open(image, path)
+        self.project_path = None
         self.modified = False
         self.result = image.copy()
         self._fit_next = True
@@ -878,6 +1007,9 @@ class MainWindow(QMainWindow):
         self.request_render(False)
 
     def discard_preview(self):
+        if self.canvas._selection_transform:
+            self.canvas.end_selection_transform(cancel=True)
+            return
         self.canvas.clear_selection()
         self.reset_draft()
 
@@ -887,6 +1019,7 @@ class MainWindow(QMainWindow):
         self._loading_controls = True
         self.edit_index = None
         self.edit_selection = None
+        self._layer_preview = None
         for c in self.adjustment_controls.values():
             c.set_value(c.default)
         self.enable_filter.setChecked(False)
@@ -896,12 +1029,14 @@ class MainWindow(QMainWindow):
             c.set_value(c.default)
         self.preset.setCurrentIndex(0)
         self._loading_controls = False
+        self.refresh_layers()
         if render:
             self.request_render(False)
 
     def apply_draft(self):
         if self.document.original is None:
             return False
+        self.commit_layer_preview()
         draft = self._draft()
         if not draft and self.edit_index is None:
             return True
@@ -940,6 +1075,7 @@ class MainWindow(QMainWindow):
         for op in self.document.operations:
             self.operation_list.addItem(op.name or op.kind)
         self._update_history_actions()
+        self.refresh_layers()
 
     def _update_history_actions(self):
         editor = self.stack.currentIndex() == 0
@@ -975,6 +1111,11 @@ class MainWindow(QMainWindow):
         if not 0 <= i < len(self.document.operations):
             return
         op = self.document.operations[i]
+        if op.kind in ("layer", "base_layer"):
+            self.layer_dock.show()
+            self.layer_dock.raise_()
+            self.layer_panel.select_layer(op.params.get("id", "base"))
+            return
         self.reset_draft(render=False)
         if op.kind == "adjustments":
             for key, c in self.adjustment_controls.items():
@@ -1105,16 +1246,23 @@ class MainWindow(QMainWindow):
     def duplicate(self):
         if self.document.original is None:
             return
-        operations = self.all_operations()
+        operations = copy.deepcopy(self.all_operations())
         original = self.document.original
 
         def ready(image):
             window = MainWindow()
             self.child_windows.append(window)
             window.open_array(image)
+            if operations:
+                window.document.set_operations(operations, "Documento duplicado")
+                window._update_history()
+                window.request_render(False)
+            window.modified = True
             window.show()
+            if any(op.kind == "layer" for op in operations):
+                window.layer_dock.raise_()
 
-        self._job(lambda: render_pipeline(original, operations), ready)
+        self._job(lambda: original.copy(), ready)
 
     def open_science(self):
         if self.document.original is None:
@@ -1152,6 +1300,11 @@ class MainWindow(QMainWindow):
             self.video.export_frame()
             return
         if self.document.original is None:
+            return
+        if self.project_path or any(
+            op.kind in ("layer", "base_layer") for op in self.document.operations
+        ):
+            self.save_project(save_as)
             return
         path = self.document.path
         if save_as or not path:
@@ -1210,10 +1363,14 @@ class MainWindow(QMainWindow):
 
         def saved(result):
             if self.document.original is original:
-                if self.document.history.entries[self.document.history.index] is entry:
+                if (
+                    self.document.history.entries[self.document.history.index] is entry
+                    and not self.project_path
+                    and not any(op.kind in ("layer", "base_layer") for op in ops)
+                ):
                     self.modified = False
                 self.document.path = str(result)
-                self.name_label.setText(Path(result).name + "  ")
+                self.name_label.setText(Path(self.project_path or result).name + "  ")
             self.status(f"Imagem salva: {result}")
 
         self._job(process, saved, pool=self.export_pool)
@@ -1275,6 +1432,7 @@ class MainWindow(QMainWindow):
             event.ignore()
             return
         self.debounce.stop()
+        self._load_generation += 1
         self.full_debounce.stop()
         self.renderer.close()
         self.export_pool.waitForDone()

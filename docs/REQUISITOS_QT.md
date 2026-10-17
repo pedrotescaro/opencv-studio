@@ -47,12 +47,29 @@ e inspeção das etapas. GrabCut não substitui crescimento de regiões.
 As matrizes morfológicas permitem `−1/0/1`, tamanho, forma inicial, âncora,
 iterações, bordas e modo; sua importação/exportação JSON é validada.
 
+## Seleção e contexto da imagem
+
+O botão direito abre ações funcionais de seleção e camadas, também disponíveis
+em Editar. Retângulo/elipse, soma/subtração/interseção, inversão, modificação
+morfológica, difusão, refinamento com prévia, máscara PNG, movimento e
+transformação com oito alças atendem às seleções locais. A camada ativa permite
+cópia/corte da seleção para nova camada, preenchimento com alfa, contorno e
+apagamento. Essas edições preservam a original e têm desfazer/refazer.
+Transformar camada usa posição e tamanho numéricos com prévia; as alças no
+canvas são da seleção. Não há conversão de seleção para caminhos vetoriais.
+
 ## Arquitetura e limites explícitos
 
 Os ajustes fotográficos, filtros, geometria, texto, curvas e níveis são receitas
 reaplicadas sobre a original. A seleção fica armazenada em cada operação. O
 histórico armazena estados de receitas sem limite fixo. Exportar grava um raster
 na resolução total; o arquivo de imagem não é um projeto com a receita embutida.
+Para continuar editando as fontes separadas, salve o projeto .ocvproj. O painel
+Camadas permite importar por arraste, sobrepor, ordenar, duplicar, remover,
+renomear, mover, redimensionar, ocultar e mesclar imagens, com desfazer/refazer.
+O painel independente mantém lista compacta com olho/miniatura/cadeado,
+opacidade/preenchimento e quatro bloqueios funcionais. As ações ficam fixas no
+rodapé; posição/tamanho abrem em Propriedades, sem comprimir a lista.
 
 Os resultados científicos aceitos no laboratório são etapas raster imutáveis;
 refaça esse processamento quando mudar uma etapa anterior que influencia sua

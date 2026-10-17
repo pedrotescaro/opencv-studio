@@ -20,6 +20,8 @@ FILTER_CATEGORY_ICONS = {
 
 STYLE = """QWidget { background:#252526; color:#e4e4e7; font-family:'Segoe UI'; font-size:12px; }
 QMainWindow,QStackedWidget { background:#1e1e1e; }
+QMainWindow::separator { background:#36363c; width:8px; height:8px; }
+QMainWindow::separator:hover { background:#488bdc; }
 QMenuBar { background:#252526; padding:4px 10px; border-bottom:1px solid #38383b; }
 QMenuBar::item { padding:5px 12px; background:transparent; }
 QMenuBar::item:selected,QMenu::item:selected { background:#34465d; }
@@ -33,6 +35,20 @@ QToolButton:checked { background:#304c70; border-color:#578ad0; }
 QDockWidget { font-weight:600; }
 QDockWidget::title { background:#2d2d30; padding:9px 12px; }
 QDockWidget::close-button,QDockWidget::float-button { padding:3px; }
+QWidget#dockTitleBar { background:#2d2d30; border-bottom:1px solid #38383b; }
+QWidget#dockTitleBar QLabel { background:transparent; font-weight:600; }
+QWidget#dockWidthGrip { background:transparent; }
+QWidget#layerHeader { background:#2d2d30; border-bottom:1px solid #3b3b40; }
+QWidget#layerHeader QLabel { background:transparent; }
+QWidget#layerHeader QDoubleSpinBox { padding:1px 3px; min-height:18px; }
+QWidget#layerHeader QComboBox { padding:1px 5px; min-height:20px; }
+QWidget#layerHeader QToolButton,QWidget#layerFooter QToolButton { padding:3px; }
+QWidget#layerFooter { background:#2d2d30; border-top:1px solid #414147; }
+QListWidget#layerList { background:#29292c; outline:0; }
+QListWidget#layerList::item { padding:0; border:0; }
+
+QWidget#dockTitleBar QToolButton { padding:3px; border:1px solid transparent; border-radius:4px; }
+QWidget#dockTitleBar QToolButton:hover { background:#414147; border-color:#62626b; }
 QPushButton { background:#343438; border:1px solid #49494f; border-radius:4px; padding:7px 11px; }
 QPushButton:hover { background:#424248; border-color:#707077; }
 QPushButton:pressed { background:#242428; }
@@ -67,6 +83,8 @@ QStatusBar QLabel { padding:2px 8px; color:#b8b8c2; }
 QCheckBox { spacing:7px; }
 QToolTip { background:#35353a; color:#f3f3f5; border:1px solid #62626a; padding:6px; }
 QSplitter::handle { background:#38383c; }
+QSplitter#filterSplitter::handle { background:#303034; }
+QSplitter#filterSplitter::handle:hover { background:#3b414a; }
 """
 
 
@@ -154,9 +172,24 @@ def _icon_pixmap(name, size, color):
         p.drawLine(11, 13, 21, 3)
         p.drawLine(14, 3, 21, 3)
         p.drawLine(21, 3, 21, 10)
-    elif name == "duplicate":
-        p.drawRoundedRect(3, 8, 13, 13, 1, 1)
-        p.drawRoundedRect(8, 3, 13, 13, 1, 1)
+    elif name == "layers":
+        p.drawPolygon([QPoint(3, 8), QPoint(12, 3), QPoint(21, 8), QPoint(12, 13)])
+        p.drawPolyline([QPoint(3, 12), QPoint(12, 17), QPoint(21, 12)])
+        p.drawPolyline([QPoint(3, 16), QPoint(12, 21), QPoint(21, 16)])
+    elif name in ("layer_up", "layer_down"):
+        if name == "layer_down":
+            p.translate(24, 24)
+            p.rotate(180)
+        p.drawLine(12, 20, 12, 4)
+        p.drawPolyline([QPoint(5, 11), QPoint(12, 4), QPoint(19, 11)])
+    elif name in ("duplicate", "undock", "redock"):
+        if name == "redock":
+            p.drawRoundedRect(3, 3, 18, 18, 1, 1)
+            p.drawLine(14, 3, 14, 21)
+            p.drawRect(QRectF(16, 7, 3, 10))
+        else:
+            p.drawRoundedRect(3, 8, 13, 13, 1, 1)
+            p.drawRoundedRect(8, 3, 13, 13, 1, 1)
     elif name == "exit":
         p.drawPolyline([QPoint(11, 4), QPoint(4, 4), QPoint(4, 20), QPoint(11, 20)])
         p.drawLine(10, 12, 22, 12)
@@ -320,6 +353,89 @@ def _icon_pixmap(name, size, color):
     elif name == "discard":
         p.drawLine(6, 6, 18, 18)
         p.drawLine(18, 6, 6, 18)
+    elif name in ("eye", "eye_off"):
+        path = QPainterPath()
+        path.moveTo(2, 12)
+        path.cubicTo(7, 4, 17, 4, 22, 12)
+        path.cubicTo(17, 20, 7, 20, 2, 12)
+        p.drawPath(path)
+        p.drawEllipse(QRectF(9, 9, 6, 6))
+        if name == "eye_off":
+            p.drawLine(3, 3, 21, 21)
+    elif name == "lock":
+        p.drawRoundedRect(QRectF(5, 10, 14, 11), 2, 2)
+        path = QPainterPath()
+        path.moveTo(8, 10)
+        path.lineTo(8, 7)
+        path.cubicTo(8, 1, 16, 1, 16, 7)
+        path.lineTo(16, 10)
+        p.drawPath(path)
+        p.drawLine(12, 14, 12, 17)
+    elif name == "lock_alpha":
+        p.drawRect(QRectF(4, 4, 16, 16))
+        for x, y in (
+            (4, 4),
+            (12, 4),
+            (8, 8),
+            (16, 8),
+            (4, 12),
+            (12, 12),
+            (8, 16),
+            (16, 16),
+        ):
+            p.fillRect(QRectF(x, y, 4, 4), QColor(color))
+    elif name == "lock_pixels":
+        path = QPainterPath()
+        path.moveTo(5, 14)
+        path.lineTo(15, 4)
+        path.lineTo(20, 9)
+        path.lineTo(10, 19)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawLine(5, 14, 10, 19)
+        p.drawLine(3, 21, 10, 19)
+    elif name == "trash":
+        p.drawLine(4, 6, 20, 6)
+        p.drawLine(9, 3, 15, 3)
+        p.drawLine(6, 7, 7, 21)
+        p.drawLine(18, 7, 17, 21)
+        p.drawLine(7, 21, 17, 21)
+        p.drawLine(10, 10, 10, 17)
+        p.drawLine(14, 10, 14, 17)
+    elif name == "cut":
+        p.drawEllipse(QRectF(3, 14, 5, 5))
+        p.drawEllipse(QRectF(14, 14, 5, 5))
+        p.drawLine(6, 15, 17, 4)
+        p.drawLine(16, 15, 5, 4)
+    elif name == "new_layer":
+        p.drawRect(QRectF(4, 4, 14, 16))
+        p.drawLine(14, 9, 22, 9)
+        p.drawLine(18, 5, 18, 13)
+    elif name == "invert_selection":
+        p.drawRect(QRectF(4, 4, 16, 16))
+        p.fillRect(QRectF(5, 5, 7, 14), QColor(color))
+        p.setPen(QPen(QColor(color), 1, Qt.PenStyle.DashLine))
+        p.drawRect(QRectF(8, 8, 8, 8))
+    elif name in ("selection_modify", "selection_transform"):
+        p.setPen(QPen(QColor(color), 1, Qt.PenStyle.DashLine))
+        p.drawRect(QRectF(5, 5, 14, 14))
+        p.setPen(QPen(QColor(color), 1.5))
+        for x, y in ((4, 4), (17, 4), (4, 17), (17, 17)):
+            p.drawRect(QRectF(x, y, 3, 3))
+    elif name == "fill":
+        path = QPainterPath()
+        path.moveTo(12, 3)
+        path.lineTo(20, 11)
+        path.lineTo(11, 20)
+        path.lineTo(3, 12)
+        path.closeSubpath()
+        p.drawPath(path)
+        p.drawLine(5, 12, 18, 12)
+        p.drawLine(9, 2, 15, 8)
+    elif name == "stroke":
+        p.drawEllipse(QRectF(4, 4, 16, 16))
+        p.setPen(QPen(QColor(color), 1, Qt.PenStyle.DashLine))
+        p.drawEllipse(QRectF(7, 7, 10, 10))
     elif name == "deselect":
         p.setPen(QPen(QColor(color), 1.6, Qt.PenStyle.DashLine))
         p.drawRect(QRectF(4, 5, 16, 14))
