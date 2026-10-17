@@ -1,4 +1,8 @@
 import sys
+if __name__ == "__main__":
+    # Mantém o comando antigo como entrada para a interface Qt.
+    from main import main
+    raise SystemExit(main())
 import subprocess
 import importlib.util
 from pathlib import Path
@@ -7,7 +11,7 @@ from pathlib import Path
 def instalar_dependencias():
     """Instala automaticamente apenas as dependências que estiverem faltando."""
     dependencias = {
-        "cv2": "opencv-python",
+        "cv2": "opencv-contrib-python>=4.8,<5",
         "numpy": "numpy",
         "PIL": "Pillow",
     }
@@ -41,7 +45,7 @@ except Exception as erro:
     print("Não foi possível instalar as dependências automaticamente.")
     print("Erro:", erro)
     print("\nTente manualmente:")
-    print(f'"{sys.executable}" -m pip install opencv-python numpy Pillow')
+    print(f'"{sys.executable}" -m pip install -r requirements.txt')
     raise
 
 
@@ -68,7 +72,8 @@ class EditorOpenCV(RecursosEditor):
         root._editor_app = self
         self.encerrando = self.sincronizando_abas = False
         self.paginas = {}
-        self.nomes_abas = ("Editor", "Recorte", "Medições", "Segmentação", "Morfologia", "Composição")
+        self.nomes_abas = ("Editor", "Recorte", "Medições", "Segmentação", "Morfologia", "Composição",
+                           "Laboratório", "Vídeo", "Reconhecimento facial")
         self.inicializar_recursos()
         self.root.title("OpenCV Studio")
         self.root.geometry("1280x820")
@@ -95,6 +100,8 @@ class EditorOpenCV(RecursosEditor):
 
         # UI / preview
         self.live_preview = tk.BooleanVar(value=False)
+        self.comparar_lado_a_lado = tk.BooleanVar(value=False)
+        self.tk_comparacao = []
         self.zoom = tk.DoubleVar(value=1.0)
         self.filtro_var = tk.StringVar()
         self.categoria_var = tk.StringVar()
@@ -197,17 +204,47 @@ class EditorOpenCV(RecursosEditor):
     def criar_interface(self):
         from editor_layout import construir_interface
         construir_interface(self)
+        self.criar_menu()
+
+    def criar_menu(self):
+        menu = tk.Menu(self.root)
+        arquivo = tk.Menu(menu, tearoff=False)
+        arquivo.add_command(label="Abrir arquivo…", command=lambda: self.acao_arquivo_contextual("abrir"), accelerator="Ctrl+O")
+        arquivo.add_command(label="Salvar resultado", command=lambda: self.acao_arquivo_contextual("salvar"), accelerator="Ctrl+S")
+        arquivo.add_command(label="Salvar como…", command=lambda: self.acao_arquivo_contextual("salvar_como"))
+        arquivo.add_separator()
+        arquivo.add_command(label="Sair", command=self.fechar)
+        menu.add_cascade(label="Arquivo", menu=arquivo)
+        ferramentas = tk.Menu(menu, tearoff=False)
+        for nome in self.nomes_abas:
+            ferramentas.add_command(label=nome, command=lambda titulo=nome: self.selecionar_aba(titulo))
+        menu.add_cascade(label="Ferramentas", menu=ferramentas)
+        self.root.configure(menu=menu)
+
+    @staticmethod
+    def titulo_aba(titulo):
+        return "Faces" if titulo == "Reconhecimento facial" else titulo
 
     def criar_placeholder(self, titulo):
         pagina = ttk.Frame(self.abas, padding=30)
         pagina.placeholder = True
+        pagina.titulo_ferramenta = titulo
         pagina.columnconfigure(0, weight=1)
         pagina.rowconfigure(0, weight=1)
         pagina.rowconfigure(2, weight=1)
         centro = ttk.Frame(pagina)
         centro.grid(row=1, column=0)
         ttk.Label(centro, text=titulo, style="Title.TLabel").pack(pady=(0, 10))
-        if titulo == "Segmentação":
+        if titulo == "Vídeo":
+            texto = "Abra um vídeo ou a câmera.\nCompare os frames e exporte o processamento."
+            acao, comando = "Abrir módulo de vídeo", self.abrir_video
+        elif titulo == "Reconhecimento facial":
+            texto = "Detecte rostos em fotos e vídeo.\nUse sua turma ou a demonstração treinada para identificar pessoas."
+            acao, comando = "Abrir reconhecimento facial", self.abrir_faces
+        elif titulo == "Laboratório" and self.atual is not None:
+            texto = "Trabalhe em uma cópia independente.\nCompare imagens, histogramas, modelos de cor e regiões."
+            acao, comando = "Abrir laboratório", self.abrir_laboratorio
+        elif titulo == "Segmentação":
             texto = "Primeiro selecione uma região na aba Medições.\nFeche o contorno e clique em Segmentar ROI."
             acao, comando = "Selecionar uma região", self.abrir_medicao
         elif titulo == "Composição":
@@ -223,7 +260,7 @@ class EditorOpenCV(RecursosEditor):
         ttk.Button(centro, text=acao, command=comando, style="Accent.TButton").pack()
         self.paginas[titulo] = pagina
         indice = self.nomes_abas.index(titulo)
-        self.abas.insert(indice if indice < len(self.abas.tabs()) else "end", pagina, text=titulo)
+        self.abas.insert(indice if indice < len(self.abas.tabs()) else "end", pagina, text=self.titulo_aba(titulo))
         return pagina
 
     def registrar_aba(self, pagina):
@@ -237,7 +274,7 @@ class EditorOpenCV(RecursosEditor):
                     placeholder.destroy()
             self.paginas[pagina.titulo] = pagina
             indice = self.nomes_abas.index(pagina.titulo)
-            self.abas.insert(indice if indice < len(self.abas.tabs()) else "end", pagina, text=pagina.titulo)
+            self.abas.insert(indice if indice < len(self.abas.tabs()) else "end", pagina, text=self.titulo_aba(pagina.titulo))
             self.abas.select(pagina)
         finally:
             self.sincronizando_abas = False
@@ -256,21 +293,93 @@ class EditorOpenCV(RecursosEditor):
         pagina = self.paginas.get(titulo)
         if pagina is not None and pagina.winfo_exists():
             self.abas.select(pagina)
+            self.atualizar_contexto_aba(titulo)
+
+    def atualizar_contexto_aba(self, titulo):
+        nomes = {"Editor": "Editor de imagens", "Vídeo": "Processamento de vídeo e câmera",
+                 "Reconhecimento facial": "Detecção, reconhecimento e chamada"}
+        self.contexto_label.configure(text=nomes.get(titulo, titulo))
+        if titulo in ("Vídeo", "Reconhecimento facial"):
+            self.acoes_arquivo.grid_remove()
+        else:
+            self.acoes_arquivo.grid()
 
     def aba_selecionada(self, _evento=None):
         if self.encerrando or self.sincronizando_abas or not self.abas.select():
             return
         pagina = self.root.nametowidget(self.abas.select())
+        titulo = getattr(pagina, "titulo_ferramenta", getattr(pagina, "titulo", "Editor"))
+        self.atualizar_contexto_aba(titulo)
         if not getattr(pagina, "placeholder", False):
             return
-        titulo = self.abas.tab(pagina, "text")
+        titulo = pagina.titulo_ferramenta
         if titulo == "Morfologia":
             self.editar_kernel()
+        elif titulo == "Vídeo":
+            self.abrir_video()
+        elif titulo == "Reconhecimento facial":
+            self.abrir_faces()
         elif self.atual is not None and not self.processando:
             if titulo == "Recorte":
                 self.abrir_recorte()
             elif titulo == "Medições":
                 self.abrir_medicao()
+            elif titulo == "Laboratório":
+                self.abrir_laboratorio()
+
+    def abrir_laboratorio(self):
+        if self.atual is None or self.processando:
+            self.set_status("Abra uma imagem antes de usar o laboratório.")
+            return
+        pagina = self.paginas.get("Laboratório")
+        if isinstance(pagina, AbaFerramenta):
+            pagina.lift()
+            return
+        from editor_laboratorio import JanelaLaboratorio
+        JanelaLaboratorio(self.root, self.atual, self.aplicar_laboratorio)
+
+    def aplicar_laboratorio(self, imagem):
+        if self.processando:
+            return
+        self.cancelar_preview_agendado()
+        self.preview_job_id += 1
+        self.guardar_historico()
+        self.atual, self.preview = imagem.copy(), None
+        self.atualizar_info()
+        self.atualizar_canvas()
+        self.atualizar_botoes()
+        self.selecionar_aba("Editor")
+        self.set_status("Resultado do laboratório aplicado. Use Desfazer para recuperar a imagem anterior.")
+
+    def abrir_faces(self):
+        pagina = self.paginas.get("Reconhecimento facial")
+        if isinstance(pagina, AbaFerramenta):
+            pagina.lift()
+            return
+        from editor_faces import JanelaFaces
+        try:
+            JanelaFaces(self.root)
+        except (ValueError, OSError, cv2.error) as exc:
+            messagebox.showerror("Reconhecimento facial indisponível", str(exc), parent=self.root)
+            self.set_status("Não foi possível abrir Faces. Confira as dependências e o cadastro local.")
+
+    def reconhecer_frame(self, frame):
+        pagina = self.paginas.get("Reconhecimento facial")
+        if not isinstance(pagina, AbaFerramenta):
+            # Detecção já funciona com o Haar pré-treinado, sem bloquear o vídeo.
+            if not hasattr(self, "motor_faces_video"):
+                from editor_faces import BancoFaces, MotorFaces
+                self.motor_faces_video = MotorFaces(BancoFaces())
+            return self.motor_faces_video.anotar(frame)[0]
+        return pagina.anotar_frame(frame)
+
+    def abrir_video(self):
+        pagina = self.paginas.get("Vídeo")
+        if isinstance(pagina, AbaFerramenta):
+            pagina.lift()
+            return
+        from editor_video import JanelaVideo
+        JanelaVideo(self.root, processador_facial=self.reconhecer_frame)
 
     def sincronizar_ferramentas(self):
         # Uma seleção pertence à imagem que a originou, inclusive sua resolução.
@@ -302,15 +411,29 @@ class EditorOpenCV(RecursosEditor):
         return "break"
 
     def configurar_atalhos(self):
-        self.root.bind("<Control-o>", lambda _e: self.abrir_imagem())
-        self.root.bind("<Control-s>", lambda _e: self.salvar_imagem())
-        self.root.bind("<Control-Shift-S>", lambda _e: self.salvar_como())
+        self.root.bind("<Control-o>", lambda _e: self.acao_arquivo_contextual("abrir"))
+        self.root.bind("<Control-s>", lambda _e: self.acao_arquivo_contextual("salvar"))
+        self.root.bind("<Control-Shift-S>", lambda _e: self.acao_arquivo_contextual("salvar_como"))
         self.root.bind("<Control-z>", lambda e: self.atalho_historico(e))
         self.root.bind("<Control-y>", lambda e: self.atalho_historico(e, refazer=True))
         self.root.bind("<Return>", lambda e: self.atalho_local("enter", e))
         self.root.bind("<Escape>", lambda e: self.atalho_local("escape", e))
         self.root.bind("<Control-Tab>", lambda e: self.alternar_aba(1))
         self.root.bind("<Control-Shift-Tab>", lambda e: self.alternar_aba(-1))
+
+    def acao_arquivo_contextual(self, acao):
+        pagina = self.root.nametowidget(self.abas.select())
+        titulo = getattr(pagina, "titulo", "Editor")
+        if titulo == "Reconhecimento facial":
+            comando = pagina.abrir_foto if acao == "abrir" else pagina.salvar_foto
+        elif titulo == "Vídeo":
+            comando = pagina.abrir_video if acao == "abrir" else pagina.exportar_frame
+        elif titulo == "Laboratório" and acao != "abrir":
+            comando = pagina.salvar
+        else:
+            comando = {"abrir": self.abrir_imagem, "salvar": self.salvar_imagem,
+                       "salvar_como": self.salvar_como}[acao]
+        return comando()
 
     def alternar_aba(self, direcao):
         indice = self.abas.index(self.abas.select())
@@ -1241,6 +1364,8 @@ class EditorOpenCV(RecursosEditor):
         self.resize_debounce_id = self.root.after(100, self.atualizar_canvas)
 
     def atualizar_canvas(self):
+        if self.resize_debounce_id is not None:
+            self.root.after_cancel(self.resize_debounce_id)
         self.resize_debounce_id = None
         imagem = self.imagem_para_exibir()
         if imagem is None:
@@ -1251,6 +1376,10 @@ class EditorOpenCV(RecursosEditor):
         self._renderizar(imagem)
 
     def _renderizar(self, imagem):
+        if self.comparar_lado_a_lado.get() and self.original is not None and imagem is not self.original:
+            self._renderizar_comparacao(imagem)
+            return
+        self.tk_comparacao = []
         if imagem.ndim == 2:
             rgb = cv2.cvtColor(imagem, cv2.COLOR_GRAY2RGB)
         else:
@@ -1283,6 +1412,32 @@ class EditorOpenCV(RecursosEditor):
         y = canvas_h // 2
         self.canvas_image_id = self.canvas.create_image(x, y, image=self.tk_image, anchor="center")
         self.canvas.configure(scrollregion=(0, 0, canvas_w, canvas_h))
+
+    def _renderizar_comparacao(self, imagem):
+        """Comparação só de visualização: preserva matrizes e resoluções de origem."""
+        matrizes = (self.original, imagem)
+        dimensoes = [(m.shape[1], m.shape[0]) for m in matrizes]
+        largura = sum(w for w, h in dimensoes)
+        altura = max(h for w, h in dimensoes)
+        modo = self.zoom_combo.get()
+        escala = min(max(100, self.canvas.winfo_width()-48)/largura,
+                     max(100, self.canvas.winfo_height()-56)/altura, 1.) if modo == "Ajustar" else float(modo.replace("%", ""))/100
+        tamanhos = [(max(1, round(w*escala)), max(1, round(h*escala))) for w, h in dimensoes]
+        total_w = sum(w for w, h in tamanhos)+24
+        total_h = max(h for w, h in tamanhos)+28
+        cw, ch = max(self.canvas.winfo_width(), total_w+24), max(self.canvas.winfo_height(), total_h+24)
+        x, y = (cw-total_w)/2, (ch-total_h)/2
+        self.canvas.delete("all")
+        self.tk_comparacao = []
+        resultado = "Prévia" if self.preview is imagem else "Imagem aplicada"
+        for matriz, (w, h), titulo in zip(matrizes, tamanhos, ("Original", resultado)):
+            rgb = cv2.cvtColor(matriz, cv2.COLOR_GRAY2RGB if matriz.ndim == 2 else cv2.COLOR_BGR2RGB)
+            foto = ImageTk.PhotoImage(Image.fromarray(rgb).resize((w, h), Image.Resampling.LANCZOS), master=self.canvas)
+            self.tk_comparacao.append(foto)
+            self.canvas.create_text(x+w/2, y+10, text=titulo, fill="#203047", font=("Segoe UI", 10, "bold"))
+            self.canvas.create_image(x, y+28, image=foto, anchor="nw")
+            x += w+24
+        self.canvas.configure(scrollregion=(0, 0, cw, ch))
 
     # ================================================================
     # Status e controles
@@ -1356,6 +1511,12 @@ class EditorOpenCV(RecursosEditor):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="OpenCV Studio — imagens, vídeo e rostos")
+    parser.add_argument("--faces", action="store_true", help="Abrir diretamente o módulo de rostos")
+    argumentos = parser.parse_args()
     root = tk.Tk()
     app = EditorOpenCV(root)
+    if argumentos.faces:
+        app.abrir_faces()
     root.mainloop()

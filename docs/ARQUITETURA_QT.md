@@ -1,0 +1,86 @@
+# Arquivos e contratos da aplicação
+
+## Fluxo principal
+
+`main.py` cria o QApplication, aplica o tema e abre `MainWindow`. A janela
+constrói o canvas, os docks e os espaços de trabalho. A leitura é assíncrona;
+`Document.open` mantém uma cópia imutável da original.
+
+Cada ação gera uma `Operation(kind, params, name, intensity, selection)`.
+`Document` mantém a lista confirmada; os controles acrescentam uma receita de
+prévia sem alterar essa lista. Aplicar confirma um novo estado em `History`.
+Desfazer, refazer e clicar no histórico substituem a receita atual.
+
+`RenderController` mantém um job ativo e somente o último pedido pendente.
+A geração identifica resultados obsoletos, que são descartados. O worker chama
+`render_pipeline` sem acessar widgets. O retorno atualiza QImage, histograma e
+dimensões na thread Qt. Exportação reaplica a receita na resolução total.
+Uma fila serial dedicada conserva a ordem de exportação da janela, mesmo se
+o primeiro salvamento exigir processamento mais demorado.
+
+## Código completo por responsabilidade
+
+| Arquivo | Classes/funções principais |
+| --- | --- |
+| `main.py` | `main`: argumentos, QApplication, paleta e inicialização |
+| `studio/ui/window.py` | `MainWindow`: menus, docks, documento e coordenação |
+| `studio/ui/theme.py` | `STYLE`, `icon`: métricas e ícones desenhados em Qt |
+| `studio/ui/widgets.py` | `AdjustmentControl`, `HistogramWidget`, `CurveWidget` |
+| `studio/canvas.py` | `ImageCanvas`: coordenadas imagem/viewport, pintura e ferramentas |
+| `studio/filters.py` | `Operation`, `ADJUSTMENTS`, `FILTERS`, `PRESETS`, `apply_operation`, `render_pipeline`, `output_size` |
+| `studio/legacy_filters.py` | Catálogo e algoritmos anteriores, migrados sem UI |
+| `studio/document.py` | `Document`: original imutável, receita e histórico |
+| `studio/history.py` | `History`, `HistoryEntry`: estados de operações ilimitados |
+| `studio/io.py` | `read_image`, `write_image`: formatos, Unicode e alfa |
+| `studio/workers.py` | `Job`, `RenderController`: execução e coalescência |
+| `studio/faces.py` | `FacePanel`: cadastro, treino, modelo, análise e chamada |
+| `studio/video.py` | `VideoPanel`: arquivo/câmera, reprodução, efeitos e exportação |
+| `studio/science.py` | `ScienceDialog`: composição, cor, segmentação, medições e morfologia |
+| `studio/advanced_jobs.py` | Jobs compartilhados e conversão NumPy → imagem Qt |
+| `studio/services/faces.py` | Banco de amostras, normalização, modelo LBPH persistente e chamada |
+| `studio/services/video.py` | Captura, efeitos e exportação com cancelamento |
+| `studio/services/color.py` | Conversão real de canais, histograma, quantização e crescimento |
+| `studio/services/geometry.py` | Máscaras, recortes, medições e escala física |
+| `studio/services/segmentation.py` | Sementes, GrabCut, componentes e máscaras |
+
+Os serviços não importam Tkinter nem as interfaces antigas. A migração mantém
+o formato dos cadastros, modelos e chamadas existentes; os módulos antigos são
+mantidos somente para regressão dos algoritmos.
+
+## Canvas
+
+O canvas guarda imagens QImage, escala e deslocamento. Converte o viewport para
+um retângulo na imagem e desenha somente essa origem. Em zoom alto o Qt usa
+nearest; na redução, transformação suavizada. O checker é uma textura pequena,
+não um bitmap proporcional à resolução da imagem.
+
+O zoom usa a coordenada sob o cursor para recompor o deslocamento. Pan aceita
+botão do meio e Espaço+arraste. Seleções informam forma, retângulo e dimensões
+de origem. A máscara é reconstruída pelo pipeline, inclusive na prévia reduzida.
+
+## Dados e concorrência
+
+O histórico compartilha operandos raster imutáveis, em vez de multiplicar a
+imagem por cada alteração de slider. Pode crescer até o limite de RAM, sem um
+número máximo artificial de estados. Esse histórico é da sessão.
+
+Faces usam os diretórios pessoais/demo existentes, hashes de amostras e modelo
+persistente. O reconhecedor protege os acessos ao modelo; o processamento do
+vídeo não acessa widgets. Mudanças de fonte/efeito têm gerações próprias para
+evitar publicar frames antigos. Exportações usam temporário e substituição
+do destino somente quando completas.
+
+O laboratório recebe uma cópia independente. Aceitar sua saída acrescenta uma
+etapa raster à receita; fechar enquanto processa invalida callbacks. As medições
+e máscaras são calculadas em pixels de origem, independentemente do zoom.
+
+## Executar e verificar
+
+```powershell
+.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_qt_*.py" -v
+```
+
+O código está nos arquivos reais do repositório, sem geradores necessários para
+executar e sem tarefas pendentes ou botões fictícios. A matriz de aceitação e
+as limitações são apresentadas em [REQUISITOS_QT.md](REQUISITOS_QT.md).
