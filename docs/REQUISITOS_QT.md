@@ -6,11 +6,11 @@ Os três espaços de trabalho são Editor, Vídeo e câmera, Rostos e chamada.
 | Requisito | Onde executar | Implementação |
 | --- | --- | --- |
 | Abrir e salvar imagens | Arquivo; arrastar arquivo no canvas | `studio/io.py`, Unicode, PNG/JPG/BMP/WEBP/TIFF, qualidade de exportação |
-| Duplicação independente | Arquivo → Duplicar documento | Render total em worker e nova janela com matriz independente |
+| Duplicação independente | Arquivo → Duplicar documento | Cópia da matriz original e da receita em nova janela independente |
 | Original e processada simultâneas | Comparação dividida | Divisória arrastável no canvas; tecla `\` exibe original enquanto pressionada |
 | Inversão | Filtros → Cores → Inverter cores | Operação com intensidade e seleção opcional |
 | Brilho e contraste | Ajustes | Sliders numéricos, reset e pilha não destrutiva |
-| Adição e subtração | Imagem → Laboratório → Composição | Saturação OpenCV, alinhamento da segunda imagem explícito |
+| Adição e subtração | Imagem → Laboratório e medições → Aritmética | Saturação OpenCV, alinhamento da segunda imagem explícito |
 | Escala de cinza | Filtros → Cores → Escala de cinza | Preserva alfa; mistura e seleção opcionais |
 | RGB e HSV | Laboratório → Canais e cor | Matriz e modelo explícitos, conversão reversível e NPZ |
 | Redimensionamento | Imagem → Redimensionar | Resolução real e opção de proporção; independente do zoom |

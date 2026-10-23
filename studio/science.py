@@ -162,7 +162,9 @@ class HistogramChart(QWidget):
             path = QPainterPath()
             for index, value in enumerate(values):
                 point = QPointF(
-                    bounds.left() + index / (len(values) - 1) * bounds.width(),
+                    # All channels share the labeled 0–255 intensity axis.
+                    # Hue ends at 179; stretching it to 255 misplaces its bins.
+                    bounds.left() + index / 255 * bounds.width(),
                     bounds.bottom() - value / maximum * bounds.height(),
                 )
                 path.moveTo(point) if index == 0 else path.lineTo(point)
@@ -171,7 +173,11 @@ class HistogramChart(QWidget):
         painter.setPen(QColor("#acacaf"))
         painter.drawText(12, self.height() - 5, "0")
         painter.drawText(self.width() - 30, self.height() - 5, "255")
-        painter.drawText(38, self.height() - 5, " / ".join(self.values))
+        painter.drawText(
+            38,
+            self.height() - 5,
+            " / ".join("H (0–179)" if name == "H" else name for name in self.values),
+        )
 
 
 class ScienceCanvas(ImageCanvas):

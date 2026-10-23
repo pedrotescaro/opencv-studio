@@ -56,6 +56,21 @@ def wait_idle(widget):
 
 
 class ScienceWorkspaceTests(unittest.TestCase):
+    def test_hsv_histogram_bins_share_the_same_intensity_axis(self):
+        chart = self.dialog.histogram
+        chart.set_data({"H": np.zeros(180), "S": np.zeros(256), "V": np.zeros(256)})
+        for counts in chart.values.values():
+            counts[90] = 1
+        with patch("studio.science.QPainter") as painter:
+            chart.paintEvent(None)
+        peaks = [
+            call.args[0].elementAt(90).x
+            for call in painter.return_value.drawPath.call_args_list
+        ]
+        self.assertEqual(len(peaks), 3)
+        self.assertAlmostEqual(peaks[0], peaks[1])
+        self.assertAlmostEqual(peaks[0], peaks[2])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.folder = Path(self.temp.name)

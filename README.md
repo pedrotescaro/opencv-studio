@@ -4,6 +4,10 @@ Editor desktop em **PySide6**, Python 3.10+, OpenCV contrib e NumPy. Tema carvã
 canvas com transparência, edição não destrutiva, 104 filtros, ferramentas de
 visão computacional, vídeo/câmera e reconhecimento facial com chamada local.
 
+A [conferência da atividade](docs/CONFERENCIA_ATIVIDADE.md) registra a cobertura,
+as correções e os testes executados em 22/10/2026. Use o
+[roteiro Qt](docs/ROTEIRO_DEMONSTRACAO.md) para preparar a apresentação.
+
 ## Executar
 
 ```powershell
