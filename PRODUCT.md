@@ -10,7 +10,9 @@ digital de imagens, morfologia, reconhecimento facial e chamada local.
   limite artificial de estados. Todo controle apresentado executa uma função.
 - Preservar o catálogo anterior, seleção/recorte, medições, segmentação,
   elementos morfológicos, composição, cadastro/modelo facial e chamada.
-- Arquivos e biometria ficam locais. A demonstração pública é separada da turma.
+- Processamento, modelos derivados e chamadas ficam locais. As fotos de origem
+  do grupo são públicas no repositório por solicitação explícita do usuário.
+  A demonstração anterior é separada do cadastro dos três integrantes.
 - Apresentação e testes acadêmicos devem distinguir identificação de detecção,
   evidência sintética e pública de validação com a turma/câmera real.
 

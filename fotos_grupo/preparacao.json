@@ -1,0 +1,218 @@
+[
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.17.07 (1).jpeg",
+    "arquivo": "fotos_grupo/pedro_antonio_silvestre_tescaro/pedro_01.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.17.07.jpeg",
+    "arquivo": "fotos_grupo/pedro_antonio_silvestre_tescaro/pedro_02.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.18.01 (1).jpeg",
+    "arquivo": "fotos_grupo/pedro_antonio_silvestre_tescaro/pedro_03.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.18.01 (2).jpeg",
+    "arquivo": "fotos_grupo/pedro_antonio_silvestre_tescaro/pedro_04.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.18.01 (3).jpeg",
+    "arquivo": "fotos_grupo/revisar/pedro/pedro_05.jpeg",
+    "uso": "revisar",
+    "motivo": "detecção ambígua ou face menor que 15% do lado curto",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.18.01.jpeg",
+    "arquivo": "fotos_grupo/pedro_antonio_silvestre_tescaro/pedro_06.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.18.22.jpeg",
+    "arquivo": "fotos_grupo/pedro_antonio_silvestre_tescaro/pedro_07.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.20.58 (1).jpeg",
+    "arquivo": "fotos_grupo/pedro_antonio_silvestre_tescaro/pedro_08.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.20.58 (2).jpeg",
+    "arquivo": "fotos_grupo/revisar/pedro/pedro_09.jpeg",
+    "uso": "revisar",
+    "motivo": "detecção ambígua ou face menor que 15% do lado curto",
+    "faces_detectadas": 2
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.20.58.jpeg",
+    "arquivo": "fotos_grupo/revisar/pedro/pedro_10.jpeg",
+    "uso": "revisar",
+    "motivo": "detecção ambígua ou face menor que 15% do lado curto",
+    "faces_detectadas": 3
+  },
+  {
+    "integrante": "PEDRO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.20.59.jpeg",
+    "arquivo": "fotos_grupo/revisar/pedro/pedro_11.jpeg",
+    "uso": "revisar",
+    "motivo": "detecção ambígua ou face menor que 15% do lado curto",
+    "faces_detectadas": 2
+  },
+  {
+    "integrante": "GUILHERME",
+    "origem": "WhatsApp Image 2026-10-24 at 08.26.12.jpeg",
+    "arquivo": "fotos_grupo/guilherme_alves_de_campos/guilherme_01.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "GUILHERME",
+    "origem": "WhatsApp Image 2026-10-24 at 08.27.06.jpeg",
+    "arquivo": "fotos_grupo/guilherme_alves_de_campos/guilherme_02.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "GUILHERME",
+    "origem": "WhatsApp Image 2026-10-24 at 08.27.46.jpeg",
+    "arquivo": "fotos_grupo/guilherme_alves_de_campos/guilherme_03.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "GUILHERME",
+    "origem": "WhatsApp Image 2026-10-24 at 08.28.13.jpeg",
+    "arquivo": "fotos_grupo/revisar/guilherme/guilherme_04.jpeg",
+    "uso": "revisar",
+    "motivo": "detecção ambígua ou face menor que 15% do lado curto",
+    "faces_detectadas": 2
+  },
+  {
+    "integrante": "GUILHERME",
+    "origem": "WhatsApp Image 2026-10-24 at 08.28.39.jpeg",
+    "arquivo": "fotos_grupo/guilherme_alves_de_campos/guilherme_05.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "GUILHERME",
+    "origem": "WhatsApp Image 2026-10-24 at 08.29.06.jpeg",
+    "arquivo": "fotos_grupo/guilherme_alves_de_campos/guilherme_06.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "GUILHERME",
+    "origem": "WhatsApp Image 2026-10-24 at 08.29.50.jpeg",
+    "arquivo": "fotos_grupo/revisar/guilherme/guilherme_07.jpeg",
+    "uso": "revisar",
+    "motivo": "detecção ambígua ou face menor que 15% do lado curto",
+    "faces_detectadas": 2
+  },
+  {
+    "integrante": "GUILHERME",
+    "origem": "WhatsApp Image 2026-10-24 at 08.32.09.jpeg",
+    "arquivo": "fotos_grupo/guilherme_alves_de_campos/guilherme_08.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PAULO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.32.16.jpeg",
+    "arquivo": "fotos_grupo/paulo_henrique_leal_dos_santos/paulo_01.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PAULO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.32.24.jpeg",
+    "arquivo": "fotos_grupo/paulo_henrique_leal_dos_santos/paulo_02.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PAULO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.32.42.jpeg",
+    "arquivo": "fotos_grupo/revisar/paulo/paulo_03.jpeg",
+    "uso": "revisar",
+    "motivo": "YuNet detectou quatro faces; requer selecionar uma foto individual",
+    "faces_detectadas": 4
+  },
+  {
+    "integrante": "PAULO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.33.06.jpeg",
+    "arquivo": "fotos_grupo/paulo_henrique_leal_dos_santos/paulo_04.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PAULO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.33.40.jpeg",
+    "arquivo": "fotos_grupo/paulo_henrique_leal_dos_santos/paulo_05.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PAULO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.33.59.jpeg",
+    "arquivo": "fotos_grupo/paulo_henrique_leal_dos_santos/paulo_06.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  },
+  {
+    "integrante": "PAULO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.34.27.jpeg",
+    "arquivo": "fotos_grupo/revisar/paulo/paulo_07.jpeg",
+    "uso": "revisar",
+    "motivo": "detecção ambígua ou face menor que 15% do lado curto",
+    "faces_detectadas": 2
+  },
+  {
+    "integrante": "PAULO",
+    "origem": "WhatsApp Image 2026-10-24 at 08.35.52.jpeg",
+    "arquivo": "fotos_grupo/paulo_henrique_leal_dos_santos/paulo_08.jpeg",
+    "uso": "treino",
+    "motivo": "uma face frontal com tamanho suficiente",
+    "faces_detectadas": 1
+  }
+]

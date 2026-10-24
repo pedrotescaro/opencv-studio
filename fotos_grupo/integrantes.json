@@ -1,0 +1,20 @@
+{
+  "versao": 1,
+  "integrantes": [
+    {
+      "id": "PEDRO",
+      "nome": "Pedro Antônio Silvestre Tescaro",
+      "pasta": "pedro_antonio_silvestre_tescaro"
+    },
+    {
+      "id": "GUILHERME",
+      "nome": "Guilherme Alves de Campos",
+      "pasta": "guilherme_alves_de_campos"
+    },
+    {
+      "id": "PAULO",
+      "nome": "Paulo Henrique Leal dos Santos",
+      "pasta": "paulo_henrique_leal_dos_santos"
+    }
+  ]
+}

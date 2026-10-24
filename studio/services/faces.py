@@ -789,7 +789,10 @@ class MotorFaces:
 class Chamada:
     """Uma primeira identificação por ID em cada sessão, persistida em JSON."""
 
-    def __init__(self, nome="", pasta=None):
+    def __init__(self, nome="", pasta=None, *, metrica="distancia_lbph"):
+        if metrica not in ("distancia_lbph", "distancia_sface"):
+            raise ErroFaces("Métrica de reconhecimento inválida para a chamada.")
+        self.metrica = metrica
         self.codigo = uuid.uuid4().hex
         self.inicio = datetime.now().astimezone().isoformat(timespec="seconds")
         self.nome = str(nome).strip() or f"Aula {datetime.now():%d/%m/%Y %H:%M}"
@@ -804,16 +807,19 @@ class Chamada:
         return self.pasta / f"{self.codigo}.json"
 
     def _salvar(self):
+        dados = dict(
+            versao=1,
+            codigo=self.codigo,
+            nome=self.nome,
+            inicio=self.inicio,
+            ativa=self.ativa,
+            registros=list(self.registros.values()),
+        )
+        if self.metrica == "distancia_sface":
+            dados.update(versao=2, algoritmo="SFace", metrica=self.metrica)
         _escrever_json(
             self.caminho,
-            dict(
-                versao=1,
-                codigo=self.codigo,
-                nome=self.nome,
-                inicio=self.inicio,
-                ativa=self.ativa,
-                registros=list(self.registros.values()),
-            ),
+            dados,
         )
 
     def registrar(self, resultado):
@@ -830,8 +836,8 @@ class Chamada:
                 primeira_identificacao=datetime.now()
                 .astimezone()
                 .isoformat(timespec="seconds"),
-                distancia_lbph=round(resultado.distancia, 4),
             )
+            registro[self.metrica] = round(resultado.distancia, 4)
             self.registros[resultado.codigo] = registro
             try:
                 self._salvar()
@@ -862,7 +868,7 @@ class Chamada:
                     "id_aluno",
                     "nome",
                     "primeira_identificacao",
-                    "distancia_lbph",
+                    self.metrica,
                 )
                 escritor = csv.DictWriter(arquivo, fieldnames=colunas, delimiter=";")
                 escritor.writeheader()

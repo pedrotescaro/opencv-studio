@@ -253,12 +253,30 @@ O detalhamento por requisito está em [REQUISITOS_QT.md](docs/REQUISITOS_QT.md).
 
 ## Rostos, modelo treinado e chamada
 
-O módulo Qt reutiliza o cadastro pessoal `.dados_faces/` e a demonstração
-`.dados_faces_demo/`. Sem cadastro, o Haar já detecta faces; identificar nomes
-exige as amostras correspondentes. Fotos, modelos, limiar e chamadas são locais.
-O modelo salvo valida os hashes das amostras e é carregado automaticamente.
+O aplicativo abre o cadastro do grupo: **Pedro Antônio Silvestre Tescaro,
+Guilherme Alves de Campos e Paulo Henrique Leal dos Santos**. As pastas de
+fotografias e as instruções estão em [fotos_grupo](fotos_grupo/README.md).
+O cadastro usa YuNet + SFace, compara somente essas identidades e mantém as
+chamadas e descritores gerados localmente. As fotos de origem do grupo são
+versionadas publicamente conforme solicitado.
 
-Para preparar a demonstração pública:
+Em **Rostos e chamada → Cadastro**, selecione o integrante, abra sua pasta e
+adicione fotos. Clique em **Treinar com as fotos do grupo**. No primeiro treino,
+os modelos oficiais OpenCV são baixados e verificados; depois funciona offline.
+Use **Abrir câmera ao vivo** ou **Chamada → Iniciar chamada ao vivo** para começar.
+
+```powershell
+.\.venv\Scripts\python.exe treinar_grupo.py
+.\.venv\Scripts\python.exe main.py --faces
+```
+
+Modificar as fotos exige novo treinamento. O modelo recusa fontes desatualizadas.
+Fotos abertas e vídeos em arquivo servem para avaliação, sem registrar presenças.
+Somente quadros ao vivo da câmera alimentam a chamada. Isso não implementa prova
+de vida: uma foto apresentada à câmera ainda pode ser reconhecida.
+
+O experimento anterior Haar + LBPH continua disponível nos serviços e testes,
+separado do scanner do grupo. Para preparar sua base pública:
 
 ```powershell
 .\.venv\Scripts\python.exe preparar_faces_demo.py
@@ -270,12 +288,13 @@ fotos distintas. O experimento teve 52/60 conhecidos corretamente identificados
 e 39/50 desconhecidos rejeitados, com 11 falsas aceitações. Veja a fonte,
 protocolo e limites em [FACES_DEMONSTRACAO.md](docs/FACES_DEMONSTRACAO.md).
 
-Cadastre ID/nome e fotos distintas, treine/atualize o modelo e inicie uma sessão
-para registrar as identificações aceitas uma vez por ID. Exporte CSV/JSON.
-A distância LBPH não é confiança percentual; a chamada precisa ser revisada.
+O experimento AT&T não é carregado automaticamente pelo aplicativo do grupo.
+Distâncias de comparação não são confiança percentual; revise a chamada.
 
 ## Vídeo
 
+A câmera começa ao vivo ao clicar em **Iniciar câmera ao vivo**, com estado
+**Ao vivo**, pausa/retomada e **Desligar câmera** para liberar o dispositivo.
 Arquivos e câmera possuem reprodução/pausa/parada, efeitos, antes/depois,
 exportação de frame, envio ao editor e exportação de arquivo completo em
 segundo plano. O reconhecimento usa o mesmo modelo do módulo Rostos. Câmera e
