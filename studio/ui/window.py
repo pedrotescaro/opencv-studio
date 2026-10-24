@@ -104,12 +104,16 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         self.setCentralWidget(self.stack)
         self.canvas = ImageCanvas()
         self.stack.addWidget(self.canvas)
-        from studio.faces import FacePanel
+        from studio.group_faces import GroupFacePanel
         from studio.video import VideoPanel
 
-        self.faces = FacePanel(get_image=lambda: self.result)
-        self.video = VideoPanel(process_face=self.faces.process_frame)
+        self.faces = GroupFacePanel(get_image=lambda: self.result)
+        self.video = VideoPanel(
+            process_face=lambda frame: self.faces.process_frame(frame, record_attendance=False),
+            process_live_face=self.faces.process_frame,
+        )
         self.faces.set_frame_provider(self.video.get_frame)
+        self.faces.liveCameraRequested.connect(self.start_group_camera)
         self.video.frameReady.connect(self.open_video_frame)
         self.stack.addWidget(self.video)
         self.stack.addWidget(self.faces)
@@ -742,6 +746,10 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         self.statusBar().addPermanentWidget(self.busy)
         self.statusBar().addPermanentWidget(self.dimension_label)
         self.statusBar().addPermanentWidget(self.zoom_combo)
+
+    def start_group_camera(self):
+        self.set_workspace(1)
+        self.video.start_live_recognition()
 
     def set_workspace(self, index):
         self.stack.setCurrentIndex(index)

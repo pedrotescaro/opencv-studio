@@ -1,0 +1,22 @@
+# Somente as três pastas de origem, imagens e instruções entram no Git.
+*
+!/.gitignore
+!/README.md
+!/integrantes.json
+!/preparacao.json
+!/teste/
+!/teste/README.md
+!/teste/grupo.jpeg
+!/teste/avaliacao.json
+!/pedro_antonio_silvestre_tescaro/
+!/guilherme_alves_de_campos/
+!/paulo_henrique_leal_dos_santos/
+!/*/README.md
+!/*/*.[jJ][pP][gG]
+!/*/*.[jJ][pP][eE][gG]
+!/*/*.[pP][nN][gG]
+!/*/*.[bB][mM][pP]
+!/*/*.[wW][eE][bB][pP]
+!/*/*.[tT][iI][fF]
+!/*/*.[tT][iI][fF][fF]
+/teste/resultado_grupo.png

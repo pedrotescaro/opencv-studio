@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
+from queue import Empty, SimpleQueue
 
 from PySide6.QtCore import Qt, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtWidgets import (
@@ -35,17 +36,22 @@ class VideoPanel(QWidget):
     statusMessage = Signal(str)
     frameReady = Signal(object)
 
-    def __init__(self, parent=None, process_face=None):
+    def __init__(self, parent=None, process_face=None, process_live_face=None):
         super().__init__(parent)
         self.process_face = process_face
+        self.process_live_face = process_live_face
         self.source = None
         self._source_lock = threading.RLock()
+        self._retired_sources = SimpleQueue()
         self._frame_lock = threading.RLock()
         self._frame = self._processed = None
         self._jobs = {}
         self._generation = 0
         self._effect_generation = 0
         self._reading = False
+        self._frame_job_id = None
+        self._source_job_id = None
+        self._pending_camera = False
         self._playing = False
         self._closed = False
         self._export_cancel = None
@@ -62,7 +68,7 @@ class VideoPanel(QWidget):
         title.setProperty("heading", True)
         layout.addWidget(title)
         subtitle = QLabel(
-            "Reprodução com efeitos, reconhecimento facial e exportação do vídeo processado."
+            "Câmera ao vivo com efeitos e reconhecimento facial. Arquivos de vídeo também podem ser processados e exportados."
         )
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
@@ -74,9 +80,12 @@ class VideoPanel(QWidget):
         self.camera_index.setRange(0, 20)
         source_row.addWidget(QLabel("Câmera"))
         source_row.addWidget(self.camera_index)
-        self.camera_button = QPushButton("Conectar câmera")
+        self.camera_button = QPushButton("Iniciar câmera ao vivo")
+        self.camera_button.setProperty("primary", True)
         self.camera_button.clicked.connect(self.open_camera)
         source_row.addWidget(self.camera_button)
+        self.live_status = QLabel("Câmera desligada")
+        source_row.addWidget(self.live_status)
         source_row.addStretch()
         source_row.addWidget(QLabel("Efeito"))
         self.effect = QComboBox()
@@ -134,6 +143,31 @@ class VideoPanel(QWidget):
         self.info = QLabel("Nenhuma fonte conectada")
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
+        self._update_controls()
+
+    def _update_controls(self):
+        connecting = self._source_job_id is not None
+        camera = bool(self.source is not None and self.source.camera)
+        self.open_button.setEnabled(not connecting)
+        self.camera_button.setEnabled(not connecting)
+        self.camera_button.setText(
+            "Reconectar câmera" if camera else "Iniciar câmera ao vivo"
+        )
+        self.play_button.setEnabled(self.source is not None and not connecting)
+        self.play_button.setText(
+            ("Pausar câmera" if self._playing else "Retomar câmera")
+            if camera else ("Pausar" if self._playing else "Reproduzir")
+        )
+        self.stop_button.setEnabled(self.source is not None or connecting)
+        self.stop_button.setText(
+            "Desligar câmera" if camera or self._pending_camera else "Parar / início"
+        )
+        self.export_button.setEnabled(
+            self.source is not None and not camera and self._export_cancel is None
+        )
+        has_frame = self._processed is not None
+        self.frame_button.setEnabled(has_frame)
+        self.editor_button.setEnabled(has_frame)
 
     def _notify(self, message):
         if self._closed:
@@ -143,7 +177,13 @@ class VideoPanel(QWidget):
 
     def _work(self, function, callback, kind="operation"):
         job = Job(function)
-        self._jobs[job.identifier] = (job, callback, kind)
+        generation = self._generation if kind in ("source", "frame") else None
+        self._jobs[job.identifier] = (job, callback, kind, generation)
+        if kind == "frame":
+            self._frame_job_id = job.identifier
+        elif kind == "source":
+            self._source_job_id = job.identifier
+            self._update_controls()
         job.signals.completed.connect(self._job_finished)
         QThreadPool.globalInstance().start(job)
         return job
@@ -153,26 +193,37 @@ class VideoPanel(QWidget):
         item = self._jobs.pop(identifier, None)
         if item is None:
             return
-        _, callback, kind = item
-        if kind == "frame":
+        _, callback, kind, generation = item
+        if kind == "frame" and identifier == self._frame_job_id:
+            self._frame_job_id = None
             self._reading = False
         if self._closed:
             if kind == "source" and result is not None:
-                result.fechar()
+                self._close_source_async(result)
             return
-        if kind == "source":
-            self.open_button.setEnabled(True)
-            self.camera_button.setEnabled(True)
+        if generation is not None and generation != self._generation:
+            if kind == "source" and result is not None:
+                self._close_source_async(result)
+            return
+        if kind == "source" and identifier == self._source_job_id:
+            self._source_job_id = None
+            self._pending_camera = False
         if kind == "export":
             self._export_cancel = None
             self.cancel_button.setEnabled(False)
-            self.export_button.setEnabled(True)
         if error:
-            self._notify(error)
             if kind == "frame":
-                self.pause()
+                if self.source is not None and self.source.camera:
+                    self.stop()
+                    self.live_status.setText("Câmera interrompida")
+                else:
+                    self.pause()
+            elif kind == "source":
+                self.live_status.setText("Fonte indisponível")
+            self._notify(error)
         else:
             callback(result)
+        self._update_controls()
 
     def open_video(self, filename=None):
         if isinstance(filename, bool) or filename is None:
@@ -192,22 +243,53 @@ class VideoPanel(QWidget):
             else index
         )
 
+    def start_live_recognition(self):
+        """Start the selected camera with the shared facial/attendance processor."""
+        reuse_camera = (
+            self.source is not None
+            and self.source.camera
+            and self.source.origem == self.camera_index.value()
+        )
+        if not reuse_camera:
+            # Clear a previous file frame before enabling facial recognition;
+            # opening the scanner must not analyze a stale snapshot as live.
+            self.open_camera()
+        self.effect.setCurrentText(EFEITO_FACIAL)
+        if reuse_camera:
+            self.play()
+
     def open_source(self, origin):
         if self._closed:
             return
         self.pause()
         self._generation += 1
         generation = self._generation
-        self.open_button.setEnabled(False)
-        self.camera_button.setEnabled(False)
+        old, self.source = self.source, None
+        if old is not None:
+            self._close_source_async(old)
+        self._frame_job_id = None
+        self._reading = False
+        self._pending_camera = isinstance(origin, int)
+        with self._frame_lock:
+            self._frame = self._processed = None
+        self._pixmaps = [None, None]
+        for preview in self.previews:
+            preview.setText("Conectando câmera…" if self._pending_camera else "Abrindo vídeo…")
+        self.live_status.setText("Conectando câmera…" if self._pending_camera else "Abrindo arquivo…")
         self._notify("Conectando fonte em segundo plano…")
 
         def open_capture():
-            source = FonteVideo(origin)
-            if self._closed or generation != self._generation:
-                source.fechar()
-                return None
-            return source
+            with self._source_lock:
+                # A webcam usually cannot be opened twice. Release a previous
+                # connection before opening, even when Stop's worker is queued.
+                self._release_retired_sources()
+                if self._closed or generation != self._generation:
+                    return None
+                source = FonteVideo(origin)
+                if self._closed or generation != self._generation:
+                    source.fechar()
+                    return None
+                return source
 
         def done(source):
             if source is None:
@@ -215,10 +297,7 @@ class VideoPanel(QWidget):
             if generation != self._generation:
                 source.fechar()
                 return
-            old = self.source
             self.source = source
-            if old is not None:
-                self._close_source_async(old)
             with self._frame_lock:
                 self._frame = self._processed = None
             self._reading = False
@@ -226,7 +305,11 @@ class VideoPanel(QWidget):
             self._notify(
                 f"{'Câmera ' + str(origin) if source.camera else Path(str(origin)).name} · {source.largura} × {source.altura} · {source.fps:.2f} fps"
             )
-            self._next_frame()
+            if source.camera:
+                self.play()
+            else:
+                self.live_status.setText("Vídeo em arquivo")
+                self._next_frame()
 
         self._work(open_capture, done, "source")
 
@@ -241,45 +324,83 @@ class VideoPanel(QWidget):
             self._notify("Abra um vídeo ou conecte a câmera primeiro.")
             return
         self._playing = True
-        self.play_button.setText("Pausar")
+        if self.source.camera:
+            self.live_status.setText("Ao vivo")
+        self._update_controls()
         self.timer.start()
         self._next_frame()
 
     def pause(self):
         self._playing = False
         self.timer.stop()
-        self.play_button.setText("Reproduzir")
+        if self.source is not None and self.source.camera:
+            self.live_status.setText("Câmera pausada")
+        self._update_controls()
 
     def stop(self):
         self.pause()
         source = self.source
+        # Stop also cancels an asynchronous connection that has not returned yet.
+        if self._source_job_id is not None:
+            self._generation += 1
+            self._source_job_id = None
+            self._pending_camera = False
+            self.live_status.setText("Câmera desligada")
+            for preview in self.previews:
+                preview.setText("Conexão cancelada. Inicie a câmera ou abra um vídeo.")
+            self._notify("Conexão cancelada.")
+            self._update_controls()
         if source is None:
             return
         if source.camera:
             self.source = None
             self._generation += 1
+            self._frame_job_id = None
+            self._reading = False
             self._close_source_async(source)
+            self.live_status.setText("Câmera desligada")
             self._notify("Câmera desconectada.")
+            self._update_controls()
             return
         if self._reading:
-            QTimer.singleShot(30, self.stop)
+            generation = self._generation
+            QTimer.singleShot(
+                30,
+                lambda: self.stop()
+                if not self._closed and generation == self._generation and source is self.source
+                else None,
+            )
             return
+
+        generation = self._generation
 
         def rewind():
             with self._source_lock:
+                if self._closed or generation != self._generation or source is not self.source:
+                    return
                 if not source.reiniciar():
                     raise ValueError(
                         "O arquivo não permite voltar ao início; abra-o novamente."
                     )
 
-        self._work(rewind, lambda _: self._next_frame())
+        self._work(
+            rewind,
+            lambda _: self._next_frame()
+            if generation == self._generation and source is self.source
+            else None,
+        )
 
     def _next_frame(self):
         if self.source is None or self._reading or self._closed:
             return
         self._reading = True
         generation, source = self._generation, self.source
-        effect, processor = self.effect.currentText(), self.process_face
+        effect = self.effect.currentText()
+        processor = (
+            self.process_live_face
+            if source.camera and self._playing and callable(self.process_live_face)
+            else self.process_face
+        )
         effect_generation = self._effect_generation
 
         def read():
@@ -288,7 +409,7 @@ class VideoPanel(QWidget):
                     return generation, None, None, 0
                 ok, frame = source.ler()
                 position = source.posicao
-            if not ok:
+            if not ok or self._closed or generation != self._generation:
                 return generation, None, None, position
             return generation, frame, aplicar_efeito(frame, effect, processor), position
 
@@ -297,15 +418,19 @@ class VideoPanel(QWidget):
             if received_generation != self._generation:
                 return
             if frame is None:
-                self.pause()
-                self._notify(
-                    "Fim do vídeo. Use Parar / início para reproduzir novamente."
-                )
+                if source.camera:
+                    self.stop()
+                    self.live_status.setText("Câmera interrompida")
+                    self._notify("A câmera parou de enviar imagens. Confira a conexão e inicie a câmera novamente.")
+                else:
+                    self.pause()
+                    self._notify("Fim do vídeo. Use Parar / início para reproduzir novamente.")
                 return
             with self._frame_lock:
                 self._frame, self._processed = frame.copy(), processed.copy()
             self._pixmaps = [image_pixmap(frame), image_pixmap(processed)]
             self._scale_previews()
+            self._update_controls()
             if effect_generation != self._effect_generation:
                 self._render_current_effect()
             if source.total:
@@ -416,7 +541,7 @@ class VideoPanel(QWidget):
                 ),
             )
         )
-        self._jobs[job.identifier] = (job, self._export_done, "export")
+        self._jobs[job.identifier] = (job, self._export_done, "export", None)
         job.signals.completed.connect(self._job_finished)
         job.signals.progress.connect(self._export_progress)
         QThreadPool.globalInstance().start(job)
@@ -441,14 +566,24 @@ class VideoPanel(QWidget):
             self._notify("Cancelando exportação…")
 
     def _close_source_async(self, source):
+        self._retired_sources.put(source)
         lock = self._source_lock
 
         def close_source():
             with lock:
-                source.fechar()
+                self._release_retired_sources()
 
         # Resource cleanup has no widget callback and remains safe after deletion.
         QThreadPool.globalInstance().start(Job(close_source))
+
+    def _release_retired_sources(self):
+        """Called only under the capture lock, never from the UI thread."""
+        while True:
+            try:
+                source = self._retired_sources.get_nowait()
+            except Empty:
+                return
+            source.fechar()
 
     def _scale_previews(self):
         for preview, pixmap in zip(self.previews, self._pixmaps):

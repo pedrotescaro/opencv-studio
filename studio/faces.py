@@ -77,7 +77,7 @@ class FacePanel(QWidget):
     attendanceChanged = Signal()
     _resultsReady = Signal(object)
 
-    def __init__(self, parent=None, get_image=None):
+    def __init__(self, parent=None, get_image=None, database_folder=None, demo_enabled=True):
         super().__init__(parent)
         self.get_image = get_image
         self.get_video_frame = None
@@ -90,18 +90,19 @@ class FacePanel(QWidget):
         self._preview_pixmap = None
         self._capture_faces = []
         self.chamada = None
-        self.bank = BancoFaces()
+        self.default_folder = Path(database_folder) if database_folder is not None else PASTA_PADRAO
+        self.bank = BancoFaces(self.default_folder)
         self.motor = MotorFaces(self.bank)
         self._build()
         self._resultsReady.connect(self._results_changed)
         self.attendanceChanged.connect(self._attendance_table)
         # No identities in the personal roster: open the existing trained public
         # demonstration, while keeping every personal record in its own folder.
-        use_demo = not self.bank.alunos and (DEMO_FOLDER / "alunos.json").exists()
+        use_demo = demo_enabled and not self.bank.alunos and (DEMO_FOLDER / "alunos.json").exists()
         self.database.blockSignals(True)
         self.database.setCurrentIndex(1 if use_demo else 0)
         self.database.blockSignals(False)
-        self._switch_database(DEMO_FOLDER if use_demo else PASTA_PADRAO, initial=True)
+        self._switch_database(DEMO_FOLDER if use_demo else self.default_folder, initial=True)
 
     def _build(self):
         layout = QVBoxLayout(self)
@@ -109,7 +110,7 @@ class FacePanel(QWidget):
         title = QLabel("Reconhecimento facial")
         title.setObjectName("workspaceTitle")
         title.setProperty("heading", True)
-        subtitle = QLabel(
+        subtitle = self.subtitle = QLabel(
             "Cadastro local, modelo LBPH persistido e presença registrada uma vez por pessoa."
         )
         subtitle.setWordWrap(True)
@@ -132,6 +133,7 @@ class FacePanel(QWidget):
 
         register = QWidget()
         reg = QVBoxLayout(register)
+        self.register_layout = reg
         form = QFormLayout()
         self.identifier, self.person_name = QLineEdit(), QLineEdit()
         self.identifier.setPlaceholderText("Matrícula ou ID")
@@ -198,10 +200,10 @@ class FacePanel(QWidget):
         reload_button = QPushButton("Recarregar cadastro e modelo")
         reload_button.clicked.connect(lambda: self._switch_database(self.bank.pasta))
         model_layout.addWidget(reload_button)
-        demo_button = QPushButton("Abrir exemplo público de teste")
+        demo_button = self.demo_button = QPushButton("Abrir exemplo público de teste")
         demo_button.clicked.connect(self.open_demo_example)
         model_layout.addWidget(demo_button)
-        note = QLabel(
+        note = self.model_note = QLabel(
             "A base pública contém participantes anônimos, não os alunos da turma. A distância LBPH não é probabilidade. Para a chamada real, selecione Minha turma e cadastre os alunos."
         )
         note.setWordWrap(True)
@@ -215,7 +217,7 @@ class FacePanel(QWidget):
         self.session_name.setPlaceholderText("Nome da aula / sessão")
         att.addWidget(self.session_name)
         controls = QHBoxLayout()
-        start = QPushButton("Iniciar chamada")
+        start = self.start_attendance_button = QPushButton("Iniciar chamada")
         start.clicked.connect(self.start_attendance)
         end = QPushButton("Encerrar")
         end.clicked.connect(self.end_attendance)
@@ -334,7 +336,7 @@ class FacePanel(QWidget):
         )
 
     def _database_selected(self, index):
-        self._switch_database(DEMO_FOLDER if index else PASTA_PADRAO)
+        self._switch_database(DEMO_FOLDER if index else self.default_folder)
 
     def _switch_database(self, folder, initial=False):
         if self._busy:

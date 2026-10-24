@@ -1,0 +1,46 @@
+{
+  "algoritmo": "YuNet + SFace",
+  "fotos_treino": 19,
+  "pessoas": 3,
+  "foto_teste": "fotos_grupo/teste/grupo.jpeg",
+  "teste_fora_treino": true,
+  "limiar_distancia": 0.637,
+  "resultados": [
+    {
+      "codigo": "PEDRO",
+      "nome": "Pedro Antônio Silvestre Tescaro",
+      "distancia": 0.5791159272193909,
+      "caixa": [
+        139,
+        139,
+        41,
+        50
+      ],
+      "modo": "identificacao"
+    },
+    {
+      "codigo": "GUILHERME",
+      "nome": "Guilherme Alves de Campos",
+      "distancia": 0.47949230670928955,
+      "caixa": [
+        340,
+        155,
+        49,
+        61
+      ],
+      "modo": "identificacao"
+    },
+    {
+      "codigo": "PAULO",
+      "nome": "Paulo Henrique Leal dos Santos",
+      "distancia": 0.4720574617385864,
+      "caixa": [
+        600,
+        102,
+        48,
+        61
+      ],
+      "modo": "identificacao"
+    }
+  ]
+}
