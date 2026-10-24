@@ -73,6 +73,7 @@ def register_photos(bank, motor, identifier, name, filenames):
 
 
 class FacePanel(QWidget):
+    attendance_metric = "distancia_lbph"
     statusMessage = Signal(str)
     attendanceChanged = Signal()
     _resultsReady = Signal(object)
@@ -612,7 +613,9 @@ class FacePanel(QWidget):
                 return
             name = self.session_name.text() if not isinstance(name, str) else name
             with self._state_lock:
-                self.chamada = Chamada(name, self.bank.pasta / "chamadas")
+                self.chamada = Chamada(
+                    name, self.bank.pasta / "chamadas", metrica=self.attendance_metric
+                )
             self._attendance_table()
             self._notify(
                 "Chamada iniciada. Rostos identificados serão registrados uma vez por ID."

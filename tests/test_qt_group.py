@@ -145,8 +145,8 @@ class GroupWorkspaceTests(unittest.TestCase):
         motor = self.prepare_model()
         self.start_call()
         frame = np.zeros((100, 120, 3), np.uint8)
-        result = ResultadoFace("PEDRO", MEMBERS[0]["nome"], 21.0, (5, 5, 40, 40))
-        unknown = ResultadoFace(None, "Desconhecido", 100.0, (50, 5, 40, 40))
+        result = ResultadoFace("PEDRO", MEMBERS[0]["nome"], 0.42, (5, 5, 40, 40))
+        unknown = ResultadoFace(None, "Desconhecido", 0.95, (50, 5, 40, 40))
         motor.anotar.side_effect = None
         motor.anotar.return_value = (frame.copy(), [result, unknown])
         with patch("studio.group_faces.verificar_fontes_grupo", return_value=True):
@@ -159,6 +159,13 @@ class GroupWorkspaceTests(unittest.TestCase):
         self.panel.export_attendance_csv(str(self.folder / "chamada.csv"))
         exported = json.loads((self.folder / "chamada.json").read_text(encoding="utf-8"))
         self.assertEqual(len(exported["registros"]), 1)
+        self.assertEqual(exported["algoritmo"], "SFace")
+        self.assertEqual(exported["metrica"], "distancia_sface")
+        self.assertEqual(exported["registros"][0]["distancia_sface"], 0.42)
+        self.assertNotIn("distancia_lbph", exported["registros"][0])
+        header = (self.folder / "chamada.csv").read_text(encoding="utf-8-sig").splitlines()[0]
+        self.assertIn("distancia_sface", header)
+        self.assertNotIn("distancia_lbph", header)
         self.assertIn("PEDRO", (self.folder / "chamada.csv").read_text(encoding="utf-8-sig"))
 
     def test_analyzing_photo_never_records_attendance(self):

@@ -22,6 +22,7 @@ class GroupFacePanel(FacePanel):
     """O aplicativo usa somente as identidades declaradas em fotos_grupo."""
 
     liveCameraRequested = Signal()
+    attendance_metric = "distancia_sface"
 
     def __init__(self, parent=None, get_image=None, group_folder=None, data_folder=None):
         self.group_folder = Path(group_folder) if group_folder is not None else GROUP_FOLDER
