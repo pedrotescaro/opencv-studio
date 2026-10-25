@@ -15,6 +15,13 @@ Os ícones apenas ajustam escala e margem transparente do desenho fornecido.
 O aplicativo Qt usa o ICO na janela e a mesma identidade no cabeçalho e na
 barra de tarefas do Windows, por `studio/branding.py`.
 
+No Windows, a janela também informa `AppUserModel.ID`, `RelaunchIconResource`,
+nome e comando de relançamento ao Shell. Isso associa o monograma ao grupo da
+barra de tarefas quando o aplicativo é executado por `pythonw.exe`. O comando
+usa os caminhos absolutos do ambiente virtual e de `main.py`, sem depender da
+pasta atual. As propriedades da janela são liberadas antes de ela ser destruída.
+Veja a [documentação Microsoft sobre o ícone do grupo](https://learn.microsoft.com/en-us/windows/win32/properties/props-system-appusermodel-relaunchiconresource).
+
 Não existe uma interface web neste repositório. Para reutilizar o favicon em
 uma página, copie os arquivos e ajuste os caminhos dos elementos HTML:
 

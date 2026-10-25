@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 from studio.canvas import ImageCanvas
-from studio.branding import application_icon
+from studio.branding import application_icon, configure_window_identity, release_window_identity
 from studio.document import Document, Operation
 from studio.filters import (
     FILTERS,
@@ -148,6 +148,7 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         self.setAcceptDrops(True)
         self._update_history()
         self._document_actions(False)
+        self._windows_branding_hwnd = configure_window_identity(self)
 
     def status(self, text):
         self.statusBar().showMessage(str(text), 10000)
@@ -1454,4 +1455,6 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         self.faces.cleanup()
         self.video.cleanup()
         QThreadPool.globalInstance().waitForDone()
+        release_window_identity(self._windows_branding_hwnd)
+        self._windows_branding_hwnd = None
         event.accept()
