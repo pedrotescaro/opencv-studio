@@ -5,6 +5,9 @@ carvão, tipografia uniforme, controles compactos e uma única cor de ação azu
 
 - Canvas `#1e1e1e`, painéis `#252526`, elevação neutra `#2d2d30`.
 - Texto `#e4e4e7`, secundário `#aaaab4`, ação e seleção `#3478cb`.
+- Identidade principal: monograma azul fornecido pelo autor, preservado em
+  `assets/branding/logo.png`; versões ICO/PNG para janela, cabeçalho e favicon
+  usam o mesmo desenho com transparência.
 - Família Segoe UI, corpo 12 px Qt, títulos de painel 12–16 px.
 - Espaçamento base 4 px; grupos 8/12/16 px; cantos de controles 4 px.
 - Menus Arquivo, Editar, Imagem, Filtros, Visualizar. Ferramentas visuais à

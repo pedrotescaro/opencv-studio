@@ -6,6 +6,9 @@ from pathlib import Path
 
 
 def main():
+    from studio.branding import application_icon, configure_platform_identity
+
+    configure_platform_identity()
     from PySide6.QtGui import QFont, QPalette, QColor
     from PySide6.QtWidgets import QApplication
     from studio.ui.window import MainWindow
@@ -20,6 +23,7 @@ def main():
     app = QApplication(sys.argv[:1])
     app.setApplicationName("OpenCV Studio")
     app.setOrganizationName("OpenCV Studio")
+    app.setWindowIcon(application_icon())
     app.setStyle("Fusion")
     app.setFont(QFont("Segoe UI", 10))
     app.setStyleSheet(STYLE)
