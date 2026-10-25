@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 from studio.canvas import ImageCanvas
+from studio.branding import application_icon, configure_window_identity, release_window_identity
 from studio.document import Document, Operation
 from studio.filters import (
     FILTERS,
@@ -66,6 +67,7 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("OpenCV Studio")
+        self.setWindowIcon(application_icon())
         self.resize(1440, 900)
         self.setMinimumSize(980, 660)
         self.document = Document()
@@ -146,6 +148,7 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         self.setAcceptDrops(True)
         self._update_history()
         self._document_actions(False)
+        self._windows_branding_hwnd = configure_window_identity(self)
 
     def status(self, text):
         self.statusBar().showMessage(str(text), 10000)
@@ -407,6 +410,11 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         top = QToolBar("Documento", self)
         top.setMovable(False)
         self.addToolBar(top)
+        self.brand_logo = QLabel()
+        self.brand_logo.setPixmap(application_icon().pixmap(QSize(28, 28)))
+        self.brand_logo.setContentsMargins(6, 0, 2, 0)
+        self.brand_logo.setAccessibleName("Logo do OpenCV Studio")
+        top.addWidget(self.brand_logo)
         brand = QLabel("  OpenCV Studio  ")
         brand.setProperty("heading", True)
         top.addWidget(brand)
@@ -1447,4 +1455,6 @@ class MainWindow(SelectionActions, LayerActions, ProjectActions, QMainWindow):
         self.faces.cleanup()
         self.video.cleanup()
         QThreadPool.globalInstance().waitForDone()
+        release_window_identity(self._windows_branding_hwnd)
+        self._windows_branding_hwnd = None
         event.accept()

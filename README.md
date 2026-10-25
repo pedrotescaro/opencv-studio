@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/logo.png" alt="Logo do OpenCV Studio" width="144">
+</p>
+
 # OpenCV Studio · Qt
 
 Editor desktop em **PySide6**, Python 3.10+, OpenCV contrib e NumPy. Tema carvão,
@@ -19,6 +23,10 @@ python -m venv .venv
 Ou execute `powershell -ExecutionPolicy Bypass -File .\iniciar.ps1`.
 O comando antigo `python editor_opencv_otimizado.py` também abre a interface Qt.
 Nenhum widget Tk, `cv2.imshow` ou trackbar OpenCV é criado pelo aplicativo novo.
+
+O monograma oficial aparece no cabeçalho, no ícone da janela e na barra de
+tarefas. O PNG original e os ícones estão em [assets/branding](assets/branding/README.md),
+incluindo as versões `favicon.ico` e `favicon.png` para uso web.
 
 ```powershell
 .\.venv\Scripts\python.exe main.py caminho\foto.png
